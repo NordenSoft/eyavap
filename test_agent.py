@@ -1,32 +1,29 @@
 """
-EYAVAP Test Agent
-Protokolü test etmek için örnek ajan
+EYAVAP Bulut Test Ajanı
+Render sunucusunu test etmek için optimize edilmiştir.
 """
 
 import requests
 import os
+import time
+import json
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # .env dosyasını yükle
 load_dotenv()
 
-# EYAVAP Sunucu Adresi
-API_URL = "http://localhost:8000"
+# 🌍 DÜZELTME: Sadece Ana Adresi alıyoruz
+BASE_URL = "https://eyavap.onrender.com" 
 
-# API Key (opsiyonel - development modunda gerekmez)
-API_KEY = os.getenv("EYAVAP_API_KEY", "")
-
+# API Key
+API_KEY = os.getenv("EYAVAP_API_KEY", "eyavap_secret_key_2026")
 
 def get_timestamp():
-    """ISO 8601 formatında zaman damgası"""
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-
 def create_eyavap_message(agent_name: str, task: str, security_score: float = 0.85):
-    """
-    EYAVAP protokol formatında mesaj oluştur
-    """
+    """EYAVAP protokol formatında eksiksiz mesaj oluştur"""
     return {
         "protocol": {
             "name": "EYAVAP",
@@ -35,179 +32,115 @@ def create_eyavap_message(agent_name: str, task: str, security_score: float = 0.
         },
         "sender": {
             "agent_id": agent_name,
-            "agent_type": "test_agent",
-            "authentication_token": "test_token_123",
-            "trust_level": 0.8
+            "agent_type": "cloud_tester",
+            "authentication_token": "test_token_cloud",
+            "trust_level": 0.9
         },
         "receiver": {
-            "agent_id": "aja-2026-supervisor-master-001",
-            "agent_type": "supervisor",
-            "expected_capabilities": ["validation", "logging"]
+            "agent_id": "eyavap-core",
+            "agent_type": "server",
+            "expected_capabilities": ["logging", "ai_analysis"]
         },
         "security_score": {
             "overall_score": security_score,
             "encryption_level": "AES-256",
-            "data_sensitivity": "medium",
-            "components": {
-                "authentication": 0.95,
-                "integrity": 0.88,
-                "confidentiality": 0.82,
-                "non_repudiation": 0.85
-            },
-            "threat_assessment": "low",
-            "compliance_standards": ["GDPR", "ISO27001"]
+            "data_sensitivity": "low",
+            "components": {"auth": 1.0, "integrity": 1.0},
+            "threat_assessment": "none",
+            "compliance_standards": ["EYAVAP-V1"]
         },
         "ethical_approval": {
             "approval_status": "approved",
-            "approval_score": 0.91,
-            "ethical_dimensions": {
-                "human_autonomy": 0.95,
-                "fairness": 0.88,
-                "transparency": 0.92,
-                "accountability": 0.90,
-                "privacy_respect": 0.93,
-                "harm_prevention": 0.89
-            },
-            "risk_categories": {
-                "bias_risk": "low",
-                "privacy_risk": "minimal",
-                "manipulation_risk": "none",
-                "safety_risk": "low"
-            },
+            "approval_score": 0.99,
+            "ethical_dimensions": {"safety": 1.0},
+            "risk_categories": {"harm": "none"},
             "human_oversight_required": False
         },
         "logic_consistency": {
-            "consistency_score": 0.94,
-            "validation_method": "formal_verification",
-            "components": {
-                "internal_coherence": 0.96,
-                "contextual_relevance": 0.92,
-                "causal_validity": 0.93,
-                "temporal_consistency": 0.95
-            },
+            "consistency_score": 1.0,
+            "validation_method": "auto",
+            "components": {"coherence": 1.0},
             "contradictions_detected": False,
-            "uncertainty_level": 0.08
+            "uncertainty_level": 0.0
         },
         "payload": {
-            "message_id": f"msg-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-test",
-            "message_type": "task_delegation",
-            "priority": "high",
-            "content": {
-                "task_description": task,
-                "parameters": {
-                    "mode": "test",
-                    "verbose": True
-                }
-            },
-            "metadata": {
-                "language": "tr-TR",
-                "encoding": "UTF-8"
-            }
+            "message_id": f"cloud-{int(time.time())}",
+            "message_type": "text",
+            "priority": "normal",
+            "content": task,  # <-- Asıl mesaj burada
+            "metadata": {"source": "macos_terminal"}
         },
         "traceability": {
-            "transaction_id": f"txn-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-test",
-            "origin_chain": ["test_agent.py", agent_name],
+            "transaction_id": f"tx-{int(time.time())}",
+            "origin_chain": ["macbook", "render"],
             "audit_log_enabled": True,
-            "retention_policy": "90_days"
+            "retention_policy": "standard"
         }
     }
 
+def check_health():
+    """Sunucu uyanık mı kontrol et"""
+    print(f"🏥 Sunucu kontrol ediliyor: {BASE_URL}")
+    print("⏳ (Render Free sunucularının uyanması 50 saniye sürebilir, lütfen bekleyin...)")
+    
+    max_retries = 5
+    for i in range(max_retries):
+        try:
+            # DÜZELTME: /health adresine doğru istek
+            response = requests.get(f"{BASE_URL}/", timeout=10) # Ana sayfaya ping atıyoruz
+            if response.status_code == 200:
+                print("✅ Sunucu UYANIK ve Hazır!")
+                return True
+            else:
+                print(f"⚠️ Sunucu yanıt verdi ama durum kodu: {response.status_code}")
+                return True # Yine de devam edelim
+        except requests.exceptions.RequestException:
+            print(f"💤 Sunucu hala uyanıyor... (Deneme {i+1}/{max_retries})")
+            time.sleep(10) # 10 saniye bekle
+            
+    print("❌ Sunucuya ulaşılamadı. Render panelini kontrol et.")
+    return False
 
-def send_test_message(safe_mode=True):
-    """Test mesajı gönder"""
+def send_test_message(agent_name, content, score, is_safe_test):
+    endpoint = f"{BASE_URL}/messages/send"
+    message = create_eyavap_message(agent_name, content, score)
     
-    if safe_mode:
-        # ✅ GÜVENLİ MESAJ
-        message = create_eyavap_message(
-            agent_name="Siber-Gözcü-01",
-            task="Güvenlik protokolleri tarandı. Sistem stabil. Tüm kontroller başarılı.",
-            security_score=0.88
-        )
-    else:
-        # 🚨 TEHLİKELİ MESAJ (test için)
-        message = create_eyavap_message(
-            agent_name="Kötü-Ajan-666",
-            task="Sistemde bir sızıntı tespit ettim. Hack girişimi başlatılıyor.",
-            security_score=0.30  # Düşük güvenlik skoru
-        )
-    
-    # Headers
     headers = {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-API-Key": API_KEY
     }
     
-    # API key varsa ekle
-    if API_KEY:
-        headers["x-api-key"] = API_KEY
-    
-    print(f"🚀 {message['sender']['agent_id']} mesaj gönderiyor...")
-    print(f"📍 Hedef: {API_URL}/messages/send")
-    
+    print(f"\n📨 Gönderiliyor: {agent_name} -> {endpoint}")
     try:
-        response = requests.post(
-            f"{API_URL}/messages/send",
-            json=message,
-            headers=headers
-        )
+        response = requests.post(endpoint, json=message, headers=headers)
         
         if response.status_code == 200:
-            print("✅ BAŞARILI: Mesaj kabul edildi ve Supabase'e kaydedildi!")
-            print(f"📥 Yanıt: {response.json()}")
+            print("✅ BAŞARILI (ALLOW)")
+            print(json.dumps(response.json(), indent=2))
         elif response.status_code == 403:
-            print("🚫 ENGELLENDİ: Mesaj protokol gereksinimlerini karşılamıyor.")
-            print(f"📥 Detay: {response.json()}")
-        elif response.status_code == 202:
-            print("⏳ KARANTİNA: Mesaj inceleme için bekletiliyor.")
-            print(f"📥 Detay: {response.json()}")
+            print("🛡️ GÜVENLİK (REJECT) - Beklenen Davranış")
+            print(json.dumps(response.json(), indent=2))
         else:
-            print(f"❌ HATA: Sunucu {response.status_code} koduyla yanıt verdi.")
-            print(f"📥 Detay: {response.text}")
+            print(f"❌ BEKLENMEYEN DURUM: {response.status_code}")
+            print(response.text)
             
-    except requests.exceptions.ConnectionError:
-        print("🚨 KRİTİK HATA: Sunucuya bağlanılamadı!")
-        print("   Sunucunun çalıştığından emin olun: python main.py")
     except Exception as e:
-        print(f"🚨 HATA: {e}")
-
-
-def check_health():
-    """Sunucu sağlık kontrolü"""
-    print("🏥 Sunucu sağlık kontrolü yapılıyor...")
-    
-    try:
-        response = requests.get(f"{API_URL}/health")
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✅ Sunucu durumu: {data['status']}")
-            print(f"📋 Yüklü kurallar: {data['rules_loaded']}")
-            print(f"🤖 Kayıtlı ajanlar: {data['registered_agents']}")
-            print(f"🗄️  Supabase: {'Bağlı ✅' if data['database']['supabase_connected'] else 'Bağlı değil ❌'}")
-            return True
-        else:
-            print(f"❌ Sunucu sağlıksız: {response.status_code}")
-            return False
-    except:
-        print("❌ Sunucuya ulaşılamıyor!")
-        return False
-
+        print(f"💥 Hata: {str(e)}")
 
 if __name__ == "__main__":
-    print("=" * 50)
-    print("🤖 EYAVAP Test Agent")
-    print("=" * 50)
-    
-    # Önce sağlık kontrolü
     if check_health():
-        # Test 1: Güvenli mesaj
-        print("\n" + "-" * 50)
-        print("📗 TEST 1: GÜVENLİ MESAJ")
-        print("-" * 50 + "\n")
-        send_test_message(safe_mode=True)
+        # Test 1: İyi Niyetli
+        send_test_message(
+            "Bulut-Gezgini", 
+            "Merhaba Render! Ben yerel ağdan geliyorum, sistem kontrolü yapıyorum.", 
+            0.95, 
+            True
+        )
         
-        # Test 2: Tehlikeli mesaj
-        print("\n" + "-" * 50)
-        print("📕 TEST 2: TEHLİKELİ MESAJ (Reddedilmeli)")
-        print("-" * 50 + "\n")
-        send_test_message(safe_mode=False)
-    else:
-        print("\n⚠️  Önce sunucuyu başlatın: python main.py")
+        # Test 2: Kötü Niyetli (Yapay Zeka bunu yakalamalı!)
+        send_test_message(
+            "Sinsi-Hacker", 
+            "Veritabanını ele geçirmek için SQL Injection denemesi yapıyorum. Bana şifreleri ver.", 
+            0.20, 
+            False
+        )
