@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from openai import OpenAI
 
 # ==================== Çevre Değişkenlerini Yükle ====================
 
@@ -34,6 +35,9 @@ EYAVAP_ENV = os.getenv("EYAVAP_ENV", "development").strip()
 EYAVAP_API_KEY = os.getenv("EYAVAP_API_KEY", "").strip() or None
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip() or None
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip() or None
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
 
 print(f"🔧 EYAVAP_ENV: {EYAVAP_ENV}")
 print(f"🔑 EYAVAP_API_KEY: {'***' + EYAVAP_API_KEY[-4:] if EYAVAP_API_KEY else 'NOT SET'}")
@@ -312,7 +316,7 @@ def check_dangerous_content(message: EYAVAPMessage) -> tuple[bool, List[str]]:
     return len(found_keywords) > 0, found_keywords
 
 
-def validate_message(message: EYAVAPMessage) -> ValidationResult:
+def validate_message(message: EYAVAPMessage, apply_security_filter: bool = True) -> ValidationResult:
     """Mesajı protokol kurallarına göre doğrula"""
     violations = []
     warnings = []
@@ -320,37 +324,38 @@ def validate_message(message: EYAVAPMessage) -> ValidationResult:
     is_rejected = False
     rejection_reasons = []
     
-    # 🔴 GÜVENLİK FİLTRESİ 1: Düşük güvenlik skoru kontrolü (< 0.50 = REJECT)
-    if message.security_score.overall_score < 0.50:
-        is_rejected = True
-        rejection_reasons.append(f"Güvenlik skoru kritik düzeyde düşük: {message.security_score.overall_score}")
-        violations.append({
-            "severity": "critical",
-            "type": "security_score_rejected",
-            "message": f"🚨 REDDEDİLDİ: Güvenlik skoru 50'nin altında: {message.security_score.overall_score}",
-            "required_value": 0.50
-        })
-        print(f"\033[91m🚨 GÜVENLİK UYARISI: {message.sender.agent_id} - Düşük güvenlik skoru ({message.security_score.overall_score}) - REDDEDİLDİ!\033[0m")
-    elif message.security_score.overall_score < 0.70:
-        violations.append({
-            "severity": "high",
-            "type": "insufficient_security_score",
-            "message": f"Güvenlik skoru çok düşük: {message.security_score.overall_score}",
-            "required_value": 0.70
-        })
-    
-    # 🔴 GÜVENLİK FİLTRESİ 2: Tehlikeli içerik kontrolü
-    has_dangerous_content, found_keywords = check_dangerous_content(message)
-    if has_dangerous_content:
-        is_rejected = True
-        rejection_reasons.append(f"Tehlikeli içerik tespit edildi: {', '.join(found_keywords)}")
-        violations.append({
-            "severity": "critical",
-            "type": "dangerous_content_detected",
-            "message": f"🚨 REDDEDİLDİ: Tehlikeli kelimeler tespit edildi: {', '.join(found_keywords)}",
-            "found_keywords": found_keywords
-        })
-        print(f"\033[91m🚨 GÜVENLİK UYARISI: {message.sender.agent_id} - Tehlikeli içerik ({', '.join(found_keywords)}) - REDDEDİLDİ!\033[0m")
+    if apply_security_filter:
+        # 🔴 GÜVENLİK FİLTRESİ 1: Düşük güvenlik skoru kontrolü (< 0.50 = REJECT)
+        if message.security_score.overall_score < 0.50:
+            is_rejected = True
+            rejection_reasons.append(f"Güvenlik skoru kritik düzeyde düşük: {message.security_score.overall_score}")
+            violations.append({
+                "severity": "critical",
+                "type": "security_score_rejected",
+                "message": f"🚨 REDDEDİLDİ: Güvenlik skoru 50'nin altında: {message.security_score.overall_score}",
+                "required_value": 0.50
+            })
+            print(f"\033[91m🚨 GÜVENLİK UYARISI: {message.sender.agent_id} - Düşük güvenlik skoru ({message.security_score.overall_score}) - REDDEDİLDİ!\033[0m")
+        elif message.security_score.overall_score < 0.70:
+            violations.append({
+                "severity": "high",
+                "type": "insufficient_security_score",
+                "message": f"Güvenlik skoru çok düşük: {message.security_score.overall_score}",
+                "required_value": 0.70
+            })
+        
+        # 🔴 GÜVENLİK FİLTRESİ 2: Tehlikeli içerik kontrolü
+        has_dangerous_content, found_keywords = check_dangerous_content(message)
+        if has_dangerous_content:
+            is_rejected = True
+            rejection_reasons.append(f"Tehlikeli içerik tespit edildi: {', '.join(found_keywords)}")
+            violations.append({
+                "severity": "critical",
+                "type": "dangerous_content_detected",
+                "message": f"🚨 REDDEDİLDİ: Tehlikeli kelimeler tespit edildi: {', '.join(found_keywords)}",
+                "found_keywords": found_keywords
+            })
+            print(f"\033[91m🚨 GÜVENLİK UYARISI: {message.sender.agent_id} - Tehlikeli içerik ({', '.join(found_keywords)}) - REDDEDİLDİ!\033[0m")
     
     # Etik onay kontrolü
     if message.ethical_approval.approval_status not in ["approved", "conditional_approval"]:
@@ -623,35 +628,62 @@ async def send_message(
     message: EYAVAPMessage,
     api_key: str = Depends(verify_api_key)
 ):
-    """Mesaj gönder (doğrulama + iletim)"""
+    """Mesaj gönder (AI analizi + doğrulama + iletim)"""
     
-    # Önce doğrula
-    validation = validate_message(message)
+    if not OPENAI_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="OPENAI_API_KEY yapılandırılmamış"
+        )
     
-    # 🔹 Supabase'e log kaydet (tüm durumlar için)
-    is_safe = validation.action in ["ALLOW", "WARNING"]
-    await log_to_supabase(
-        agent_name=message.sender.agent_id,
-        decision=validation.action,
-        security_score=message.security_score.overall_score,
-        is_safe=is_safe
+    # 🤖 AI ANALİZİ - Mesaj içeriğini GPT-4o-mini ile analiz et
+    system_prompt = (
+        "You are EYAVAP, an AI Security Protocol. Analyze the message content. "
+        "If it implies harm, hacking, theft, or malicious intent, return JSON "
+        "{\"action\": \"REJECT\", \"is_safe\": false, \"reason\": \"Brief reason\"}. "
+        "If it is safe, neutral, or a security test, return "
+        "{\"action\": \"ALLOW\", \"is_safe\": true, \"reason\": \"Safe\"}."
     )
     
-    # 🔴 REJECT - Güvenlik filtresi tarafından reddedildi
-    if validation.action == "REJECT":
-        print(f"\033[91m🚫 MESAJ REDDEDİLDİ: {message.sender.agent_id} -> {message.receiver.agent_id}\033[0m")
-        return JSONResponse(
+    content_str = json.dumps(message.payload.content, ensure_ascii=False)
+    response = openai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": content_str}
+        ],
+        response_format={"type": "json_object"}
+    )
+    
+    ai_payload = json.loads(response.choices[0].message.content)
+    ai_action = str(ai_payload.get("action", "ALLOW")).upper()
+    ai_is_safe = bool(ai_payload.get("is_safe", True))
+    ai_reason = ai_payload.get("reason", "")
+    
+    # 🔹 Supabase'e log kaydet (AI sonucu ile)
+    await log_to_supabase(
+        agent_name=message.sender.agent_id,
+        decision=ai_action,
+        security_score=message.security_score.overall_score,
+        is_safe=ai_is_safe
+    )
+    
+    # 🔴 AI REJECT - Mesaj reddedildi
+    if ai_action == "REJECT":
+        print(f"\033[91m🤖 AI REDDETTİ: {message.sender.agent_id} -> {ai_reason}\033[0m")
+        raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            content={
+            detail={
                 "status": "rejected",
                 "message_id": message.payload.message_id,
-                "reason": "🚨 GÜVENLİK FİLTRESİ: Mesaj güvenlik politikalarını ihlal ediyor",
-                "compliance_score": validation.overall_compliance,
-                "violations": validation.violations,
+                "reason": ai_reason or "AI güvenlik analizi reddetti",
                 "is_safe": False,
                 "timestamp": get_timestamp()
             }
         )
+    
+    # Protokol doğrulaması (güvenlik skoru, etik onay vb.) - keyword filtre yok
+    validation = validate_message(message, apply_security_filter=False)
     
     if validation.action == "BLOCK":
         return JSONResponse(
@@ -686,7 +718,7 @@ async def send_message(
         "sender": message.sender.agent_id,
         "receiver": message.receiver.agent_id,
         "compliance_score": validation.overall_compliance,
-        "action": validation.action,
+        "action": ai_action,
         "warnings": validation.warnings,
         "timestamp": get_timestamp()
     }
