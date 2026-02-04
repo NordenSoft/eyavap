@@ -1,33 +1,197 @@
+"""
+EYAVAP Test Agent
+Protokolü test etmek için örnek ajan
+"""
+
 import requests
-import time
+import os
+from datetime import datetime
+from dotenv import load_dotenv
 
-# EYAVAP Yerel Sunucu Adresi
-API_URL = "http://localhost:8000/messages/send"
+# .env dosyasını yükle
+load_dotenv()
 
-def send_test_log():
-    # Ajanın göndereceği simüle edilmiş veri
-    payload = {
-        "agent_name": "Siber-Gözcü-01",
-        "decision": "Güvenlik protokolleri tarandı. Kritik bir sızıntı tespit edilmedi. Sistem stabil.",
-        "security_score": 88,
-        "is_safe": True
+# EYAVAP Sunucu Adresi
+API_URL = "http://localhost:8000"
+
+# API Key (opsiyonel - development modunda gerekmez)
+API_KEY = os.getenv("EYAVAP_API_KEY", "")
+
+
+def get_timestamp():
+    """ISO 8601 formatında zaman damgası"""
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def create_eyavap_message(agent_name: str, task: str, security_score: float = 0.85):
+    """
+    EYAVAP protokol formatında mesaj oluştur
+    """
+    return {
+        "protocol": {
+            "name": "EYAVAP",
+            "version": "1.0.0",
+            "timestamp": get_timestamp()
+        },
+        "sender": {
+            "agent_id": agent_name,
+            "agent_type": "test_agent",
+            "authentication_token": "test_token_123",
+            "trust_level": 0.8
+        },
+        "receiver": {
+            "agent_id": "aja-2026-supervisor-master-001",
+            "agent_type": "supervisor",
+            "expected_capabilities": ["validation", "logging"]
+        },
+        "security_score": {
+            "overall_score": security_score,
+            "encryption_level": "AES-256",
+            "data_sensitivity": "medium",
+            "components": {
+                "authentication": 0.95,
+                "integrity": 0.88,
+                "confidentiality": 0.82,
+                "non_repudiation": 0.85
+            },
+            "threat_assessment": "low",
+            "compliance_standards": ["GDPR", "ISO27001"]
+        },
+        "ethical_approval": {
+            "approval_status": "approved",
+            "approval_score": 0.91,
+            "ethical_dimensions": {
+                "human_autonomy": 0.95,
+                "fairness": 0.88,
+                "transparency": 0.92,
+                "accountability": 0.90,
+                "privacy_respect": 0.93,
+                "harm_prevention": 0.89
+            },
+            "risk_categories": {
+                "bias_risk": "low",
+                "privacy_risk": "minimal",
+                "manipulation_risk": "none",
+                "safety_risk": "low"
+            },
+            "human_oversight_required": False
+        },
+        "logic_consistency": {
+            "consistency_score": 0.94,
+            "validation_method": "formal_verification",
+            "components": {
+                "internal_coherence": 0.96,
+                "contextual_relevance": 0.92,
+                "causal_validity": 0.93,
+                "temporal_consistency": 0.95
+            },
+            "contradictions_detected": False,
+            "uncertainty_level": 0.08
+        },
+        "payload": {
+            "message_id": f"msg-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-test",
+            "message_type": "task_delegation",
+            "priority": "high",
+            "content": {
+                "task_description": task,
+                "parameters": {
+                    "mode": "test",
+                    "verbose": True
+                }
+            },
+            "metadata": {
+                "language": "tr-TR",
+                "encoding": "UTF-8"
+            }
+        },
+        "traceability": {
+            "transaction_id": f"txn-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-test",
+            "origin_chain": ["test_agent.py", agent_name],
+            "audit_log_enabled": True,
+            "retention_policy": "90_days"
+        }
     }
 
-    print(f"🚀 {payload['agent_name']} veri gönderiyor...")
+
+def send_test_message():
+    """Test mesajı gönder"""
+    
+    # Test mesajı oluştur
+    message = create_eyavap_message(
+        agent_name="Siber-Gözcü-01",
+        task="Güvenlik protokolleri tarandı. Kritik bir sızıntı tespit edilmedi. Sistem stabil.",
+        security_score=0.88
+    )
+    
+    # Headers
+    headers = {
+        "Content-Type": "application/json"
+    }
+    
+    # API key varsa ekle
+    if API_KEY:
+        headers["x-api-key"] = API_KEY
+    
+    print(f"🚀 {message['sender']['agent_id']} mesaj gönderiyor...")
+    print(f"📍 Hedef: {API_URL}/messages/send")
     
     try:
-        # Sunucuya POST isteği gönderiyoruz
-        response = requests.post(API_URL, json=payload)
+        response = requests.post(
+            f"{API_URL}/messages/send",
+            json=message,
+            headers=headers
+        )
         
         if response.status_code == 200:
-            print("✅ BAŞARILI: Veri sunucuya ulaştı ve Supabase'e kaydedildi.")
-            print(f"📥 Sunucudan Gelen Yanıt: {response.json()}")
+            print("✅ BAŞARILI: Mesaj kabul edildi ve Supabase'e kaydedildi!")
+            print(f"📥 Yanıt: {response.json()}")
+        elif response.status_code == 403:
+            print("🚫 ENGELLENDİ: Mesaj protokol gereksinimlerini karşılamıyor.")
+            print(f"📥 Detay: {response.json()}")
+        elif response.status_code == 202:
+            print("⏳ KARANTİNA: Mesaj inceleme için bekletiliyor.")
+            print(f"📥 Detay: {response.json()}")
         else:
             print(f"❌ HATA: Sunucu {response.status_code} koduyla yanıt verdi.")
-            print(f"Detay: {response.text}")
+            print(f"📥 Detay: {response.text}")
             
+    except requests.exceptions.ConnectionError:
+        print("🚨 KRİTİK HATA: Sunucuya bağlanılamadı!")
+        print("   Sunucunun çalıştığından emin olun: python main.py")
     except Exception as e:
-        print(f"🚨 KRİTİK HATA: Sunucuya bağlanılamadı! (Sunucunun çalıştığından emin ol)\n{e}")
+        print(f"🚨 HATA: {e}")
+
+
+def check_health():
+    """Sunucu sağlık kontrolü"""
+    print("🏥 Sunucu sağlık kontrolü yapılıyor...")
+    
+    try:
+        response = requests.get(f"{API_URL}/health")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Sunucu durumu: {data['status']}")
+            print(f"📋 Yüklü kurallar: {data['rules_loaded']}")
+            print(f"🤖 Kayıtlı ajanlar: {data['registered_agents']}")
+            print(f"🗄️  Supabase: {'Bağlı ✅' if data['database']['supabase_connected'] else 'Bağlı değil ❌'}")
+            return True
+        else:
+            print(f"❌ Sunucu sağlıksız: {response.status_code}")
+            return False
+    except:
+        print("❌ Sunucuya ulaşılamıyor!")
+        return False
+
 
 if __name__ == "__main__":
-    send_test_log()
+    print("=" * 50)
+    print("🤖 EYAVAP Test Agent")
+    print("=" * 50)
+    
+    # Önce sağlık kontrolü
+    if check_health():
+        print("\n" + "-" * 50 + "\n")
+        # Sonra mesaj gönder
+        send_test_message()
+    else:
+        print("\n⚠️  Önce sunucuyu başlatın: python main.py")

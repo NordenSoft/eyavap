@@ -9,6 +9,7 @@ import hashlib
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Depends, Header, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,8 +17,27 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
-# Çevre değişkenlerini yükle
-load_dotenv()
+# ==================== Çevre Değişkenlerini Yükle ====================
+
+# .env dosyasının tam yolunu bul (main.py ile aynı dizinde)
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+# Debug: Çevre değişkenlerini kontrol et
+print(f"📁 .env dosyası yolu: {env_path}")
+print(f"📁 .env dosyası mevcut mu: {env_path.exists()}")
+
+# Çevre değişkenlerini global olarak oku (bir kez)
+# NOT: Varsayılan "development" - production'da .env'de değiştirin
+EYAVAP_ENV = os.getenv("EYAVAP_ENV", "development")
+EYAVAP_API_KEY = os.getenv("EYAVAP_API_KEY")
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+print(f"🔧 EYAVAP_ENV: {EYAVAP_ENV}")
+print(f"🔑 EYAVAP_API_KEY: {'***' + EYAVAP_API_KEY[-4:] if EYAVAP_API_KEY else 'NOT SET'}")
+print(f"🗄️  SUPABASE_URL: {'SET' if SUPABASE_URL else 'NOT SET'}")
+print(f"🔐 SUPABASE_KEY: {'SET' if SUPABASE_KEY else 'NOT SET'}")
 
 # ==================== Supabase Bağlantısı ====================
 
@@ -26,21 +46,19 @@ supabase_client = None
 supabase_connected = False
 
 def init_supabase():
-    """Supabase bağlantısını başlat"""
+    """Supabase bağlantısını başlat (global değişkenleri kullanır)"""
     global supabase_client, supabase_connected
     
     try:
         from supabase import create_client, Client
         
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_KEY")
-        
-        if not supabase_url or not supabase_key:
+        # Global olarak tanımlanan değişkenleri kullan
+        if not SUPABASE_URL or not SUPABASE_KEY:
             print("⚠️  Supabase yapılandırması eksik! SUPABASE_URL ve SUPABASE_KEY gerekli.")
             print("   Veritabanı loglama devre dışı bırakıldı.")
             return False
         
-        supabase_client = create_client(supabase_url, supabase_key)
+        supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
         supabase_connected = True
         print("✅ Supabase bağlantısı başarılı!")
         return True
@@ -252,19 +270,19 @@ def generate_hash(data: str) -> str:
 
 
 async def verify_api_key(x_api_key: str = Header(None)) -> str:
-    """API anahtarını doğrula"""
-    expected_key = os.getenv("EYAVAP_API_KEY")
+    """API anahtarını doğrula (global değişkenleri kullanır)"""
     
-    if not expected_key:
-        # Geliştirme modunda API key kontrolü atlanabilir
-        if os.getenv("EYAVAP_ENV") == "development":
-            return "development"
+    # Geliştirme modunda API key kontrolü atlanabilir
+    if EYAVAP_ENV == "development":
+        return "development"
+    
+    if not EYAVAP_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="API anahtarı yapılandırılmamış"
         )
     
-    if x_api_key != expected_key:
+    if x_api_key != EYAVAP_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Geçersiz API anahtarı"
@@ -504,7 +522,7 @@ async def validate_message_endpoint(
     # Gönderen kontrolü
     if message.sender.agent_id not in registered_agents:
         # Otomatik kayıt (geliştirme için)
-        if os.getenv("EYAVAP_ENV") == "development":
+        if EYAVAP_ENV == "development":
             registered_agents[message.sender.agent_id] = {
                 "agent_id": message.sender.agent_id,
                 "agent_type": message.sender.agent_type,
@@ -663,5 +681,5 @@ if __name__ == "__main__":
         "main:app",
         host=host,
         port=port,
-        reload=os.getenv("EYAVAP_ENV") == "development"
+        reload=EYAVAP_ENV == "development"
     )
