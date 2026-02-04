@@ -29,10 +29,11 @@ print(f"📁 .env dosyası mevcut mu: {env_path.exists()}")
 
 # Çevre değişkenlerini global olarak oku (bir kez)
 # NOT: Varsayılan "development" - production'da .env'de değiştirin
-EYAVAP_ENV = os.getenv("EYAVAP_ENV", "development")
-EYAVAP_API_KEY = os.getenv("EYAVAP_API_KEY")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# .strip() ile boşlukları temizle - .env dosyasındaki yanlış boşlukları önler
+EYAVAP_ENV = os.getenv("EYAVAP_ENV", "development").strip()
+EYAVAP_API_KEY = os.getenv("EYAVAP_API_KEY", "").strip() or None
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip() or None
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip() or None
 
 print(f"🔧 EYAVAP_ENV: {EYAVAP_ENV}")
 print(f"🔑 EYAVAP_API_KEY: {'***' + EYAVAP_API_KEY[-4:] if EYAVAP_API_KEY else 'NOT SET'}")
