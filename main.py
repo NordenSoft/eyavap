@@ -19,6 +19,93 @@ from dotenv import load_dotenv
 # Çevre değişkenlerini yükle
 load_dotenv()
 
+# ==================== Supabase Bağlantısı ====================
+
+# Supabase client'ı global olarak tanımla
+supabase_client = None
+supabase_connected = False
+
+def init_supabase():
+    """Supabase bağlantısını başlat"""
+    global supabase_client, supabase_connected
+    
+    try:
+        from supabase import create_client, Client
+        
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_KEY")
+        
+        if not supabase_url or not supabase_key:
+            print("⚠️  Supabase yapılandırması eksik! SUPABASE_URL ve SUPABASE_KEY gerekli.")
+            print("   Veritabanı loglama devre dışı bırakıldı.")
+            return False
+        
+        supabase_client = create_client(supabase_url, supabase_key)
+        supabase_connected = True
+        print("✅ Supabase bağlantısı başarılı!")
+        return True
+        
+    except ImportError:
+        print("⚠️  Supabase kütüphanesi bulunamadı! pip install supabase")
+        return False
+    except Exception as e:
+        print(f"❌ Supabase bağlantı hatası: {e}")
+        return False
+
+
+async def log_to_supabase(
+    agent_name: str,
+    decision: str,
+    security_score: float,
+    is_safe: bool,
+    additional_data: Optional[Dict[str, Any]] = None
+) -> bool:
+    """
+    agent_logs tablosuna kayıt ekle
+    
+    Args:
+        agent_name: Ajan adı/ID'si
+        decision: Alınan karar (ALLOW, BLOCK, QUARANTINE, WARNING)
+        security_score: Güvenlik skoru (0.0 - 1.0)
+        is_safe: Güvenli mi? (True/False)
+        additional_data: Ek veriler (opsiyonel)
+    
+    Returns:
+        bool: Başarılı mı?
+    """
+    global supabase_client, supabase_connected
+    
+    if not supabase_connected or not supabase_client:
+        print("⚠️  Supabase bağlı değil, log atlanıyor...")
+        return False
+    
+    try:
+        log_record = {
+            "agent_name": agent_name,
+            "decision": decision,
+            "security_score": security_score,
+            "is_safe": is_safe,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        # Ek veriler varsa ekle
+        if additional_data:
+            log_record["metadata"] = json.dumps(additional_data)
+        
+        result = supabase_client.table("agent_logs").insert(log_record).execute()
+        
+        if result.data:
+            print(f"📝 Log kaydedildi: {agent_name} -> {decision}")
+            return True
+        else:
+            print(f"⚠️  Log kayıt yanıtı boş: {result}")
+            return False
+            
+    except Exception as e:
+        # Hata durumunda sunucu çökmemeli!
+        print(f"❌ Supabase log hatası (sunucu çalışmaya devam ediyor): {e}")
+        return False
+
 # Protokol kurallarını yükle
 def load_protocol_rules() -> Dict[str, Any]:
     """Protokol kurallarını JSON dosyasından yükle"""
@@ -36,10 +123,17 @@ registered_agents = {}
 async def lifespan(app: FastAPI):
     """Uygulama yaşam döngüsü yönetimi"""
     global protocol_rules
+    
+    # Protokol kurallarını yükle
     protocol_rules = load_protocol_rules()
     print(f"🚀 EYAVAP Sunucusu başlatıldı - Protokol v{protocol_rules.get('version', '1.0.0')}")
     print(f"📋 {len(protocol_rules.get('rules', []))} kural yüklendi")
+    
+    # Supabase bağlantısını başlat
+    init_supabase()
+    
     yield
+    
     print("👋 EYAVAP Sunucusu kapatılıyor...")
 
 
@@ -305,7 +399,11 @@ async def health_check():
         "status": "healthy",
         "timestamp": get_timestamp(),
         "rules_loaded": len(protocol_rules.get("rules", [])),
-        "registered_agents": len(registered_agents)
+        "registered_agents": len(registered_agents),
+        "database": {
+            "supabase_connected": supabase_connected,
+            "logging_enabled": supabase_connected
+        }
     }
 
 
@@ -423,6 +521,22 @@ async def validate_message_endpoint(
     # Mesajı doğrula
     result = validate_message(message)
     
+    # 🔹 Supabase'e log kaydet
+    is_safe = result.action in ["ALLOW", "WARNING"]
+    await log_to_supabase(
+        agent_name=message.sender.agent_id,
+        decision=result.action,
+        security_score=message.security_score.overall_score,
+        is_safe=is_safe,
+        additional_data={
+            "message_id": message.payload.message_id,
+            "receiver": message.receiver.agent_id,
+            "compliance_score": result.overall_compliance,
+            "violations_count": len(result.violations),
+            "endpoint": "validate"
+        }
+    )
+    
     return {
         "status": "validated",
         "message_id": message.payload.message_id,
@@ -448,6 +562,24 @@ async def send_message(
     
     # Önce doğrula
     validation = validate_message(message)
+    
+    # 🔹 Supabase'e log kaydet (tüm durumlar için)
+    is_safe = validation.action in ["ALLOW", "WARNING"]
+    await log_to_supabase(
+        agent_name=message.sender.agent_id,
+        decision=validation.action,
+        security_score=message.security_score.overall_score,
+        is_safe=is_safe,
+        additional_data={
+            "message_id": message.payload.message_id,
+            "receiver": message.receiver.agent_id,
+            "compliance_score": validation.overall_compliance,
+            "violations_count": len(validation.violations),
+            "message_type": message.payload.message_type,
+            "priority": message.payload.priority,
+            "endpoint": "send"
+        }
+    )
     
     if validation.action == "BLOCK":
         return JSONResponse(

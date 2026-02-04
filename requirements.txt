@@ -23,9 +23,9 @@ anyio==4.2.0
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
-# Veritabanı (opsiyonel - ileride kullanılacak)
-# sqlalchemy==2.0.25
-# asyncpg==0.29.0
+# Veritabanı - Supabase
+supabase==2.3.4
+postgrest==0.16.1
 
 # Test
 pytest==8.0.0
