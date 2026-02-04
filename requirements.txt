@@ -1,47 +1,34 @@
-# EYAVAP - Evrensel Yapay Zekâ Ajanları Protokolü
-# Gerekli Kütüphaneler
+# --- Web Framework & Server ---
+fastapi                       # Modern web framework for building the EYAVAP API
+uvicorn[standard]             # High-performance ASGI server to run the application
 
-# Web Framework
-fastapi==0.109.2
-uvicorn[standard]==0.27.1
+# --- Configuration & Environment ---
+python-dotenv                 # Loads secret environment variables from .env
+pydantic                      # Data validation using Python type hints
+pydantic-settings             # Specialized settings management for Pydantic
 
-# Çevre Değişkenleri
-python-dotenv==1.0.1
+# --- Communication (SDK & Networking) ---
+requests                      # Standard synchronous HTTP library for quick API calls
+httpx                         # Next-generation async HTTP client for agent communication
+anyio                         # High-level asynchronous control for concurrent tasks
 
-# Veri Doğrulama
-pydantic==2.6.1
-pydantic-settings==2.1.0
+# --- Security & Authentication ---
+python-jose[cryptography]     # Implements JWT tokens to verify AI agent identities
+passlib[bcrypt]               # Secure password hashing for agent credentials
 
-# HTTP İstemci (SDK için)
-requests==2.31.0
-httpx
+# --- Database & Memory (Supabase) ---
+supabase                      # Official client for Supabase (The AI memory bank)
+postgrest                     # RESTful API client for interacting with the database
 
-# Asenkron Destek
-anyio==4.2.0
+# --- Testing & Quality Assurance ---
+pytest                        # The standard framework for writing and running system tests
+pytest-asyncio                # Enables testing for asynchronous FastAPI endpoints
 
-# Güvenlik
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+# --- Logging & Monitoring ---
+loguru                        # Advanced, easy-to-use logging for system events
+prometheus-client             # Exports system metrics for real-time performance monitoring
 
-# Veritabanı - Supabase
-supabase==2.3.4
-postgrest==0.16.1
-
-# Test
-pytest==8.0.0
-pytest-asyncio==0.23.4
-
-# Loglama
-loguru==0.7.2
-
-# Zaman İşlemleri
-python-dateutil==2.8.2
-
-# YAML Desteği (config dosyaları için)
-pyyaml==6.0.1
-
-# Rate Limiting
-slowapi==0.1.9
-
-# Metrics & Monitoring
-prometheus-client==0.19.0
+# --- Utilities ---
+python-dateutil               # Powerful extensions to the standard datetime module
+pyyaml                        # Support for reading/writing YAML configuration files
+slowapi                       # Rate limiting to protect your API from being overwhelmed
