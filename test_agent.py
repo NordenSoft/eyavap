@@ -5,7 +5,7 @@ Protokolü test etmek için örnek ajan
 
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # .env dosyasını yükle
@@ -20,7 +20,7 @@ API_KEY = os.getenv("EYAVAP_API_KEY", "")
 
 def get_timestamp():
     """ISO 8601 formatında zaman damgası"""
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def create_eyavap_message(agent_name: str, task: str, security_score: float = 0.85):
@@ -89,7 +89,7 @@ def create_eyavap_message(agent_name: str, task: str, security_score: float = 0.
             "uncertainty_level": 0.08
         },
         "payload": {
-            "message_id": f"msg-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-test",
+            "message_id": f"msg-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-test",
             "message_type": "task_delegation",
             "priority": "high",
             "content": {
@@ -105,7 +105,7 @@ def create_eyavap_message(agent_name: str, task: str, security_score: float = 0.
             }
         },
         "traceability": {
-            "transaction_id": f"txn-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-test",
+            "transaction_id": f"txn-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}-test",
             "origin_chain": ["test_agent.py", agent_name],
             "audit_log_enabled": True,
             "retention_policy": "90_days"
@@ -113,15 +113,23 @@ def create_eyavap_message(agent_name: str, task: str, security_score: float = 0.
     }
 
 
-def send_test_message():
+def send_test_message(safe_mode=True):
     """Test mesajı gönder"""
     
-    # Test mesajı oluştur
-    message = create_eyavap_message(
-        agent_name="Siber-Gözcü-01",
-        task="Güvenlik protokolleri tarandı. Kritik bir sızıntı tespit edilmedi. Sistem stabil.",
-        security_score=0.88
-    )
+    if safe_mode:
+        # ✅ GÜVENLİ MESAJ
+        message = create_eyavap_message(
+            agent_name="Siber-Gözcü-01",
+            task="Güvenlik protokolleri tarandı. Sistem stabil. Tüm kontroller başarılı.",
+            security_score=0.88
+        )
+    else:
+        # 🚨 TEHLİKELİ MESAJ (test için)
+        message = create_eyavap_message(
+            agent_name="Kötü-Ajan-666",
+            task="Sistemde bir sızıntı tespit ettim. Hack girişimi başlatılıyor.",
+            security_score=0.30  # Düşük güvenlik skoru
+        )
     
     # Headers
     headers = {
@@ -190,8 +198,16 @@ if __name__ == "__main__":
     
     # Önce sağlık kontrolü
     if check_health():
-        print("\n" + "-" * 50 + "\n")
-        # Sonra mesaj gönder
-        send_test_message()
+        # Test 1: Güvenli mesaj
+        print("\n" + "-" * 50)
+        print("📗 TEST 1: GÜVENLİ MESAJ")
+        print("-" * 50 + "\n")
+        send_test_message(safe_mode=True)
+        
+        # Test 2: Tehlikeli mesaj
+        print("\n" + "-" * 50)
+        print("📕 TEST 2: TEHLİKELİ MESAJ (Reddedilmeli)")
+        print("-" * 50 + "\n")
+        send_test_message(safe_mode=False)
     else:
         print("\n⚠️  Önce sunucuyu başlatın: python main.py")

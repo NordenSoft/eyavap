@@ -28,6 +28,10 @@ pytest-asyncio                # Enables testing for asynchronous FastAPI endpoin
 loguru                        # Advanced, easy-to-use logging for system events
 prometheus-client             # Exports system metrics for real-time performance monitoring
 
+# --- Dashboard & Visualization ---
+streamlit                     # Interactive web dashboard for monitoring AI agents
+pandas                        # Data manipulation and analysis for log processing
+
 # --- Utilities ---
 python-dateutil               # Powerful extensions to the standard datetime module
 pyyaml                        # Support for reading/writing YAML configuration files

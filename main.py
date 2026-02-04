@@ -6,7 +6,7 @@ Ana Sunucu Dosyası
 import os
 import json
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -76,8 +76,7 @@ async def log_to_supabase(
     agent_name: str,
     decision: str,
     security_score: float,
-    is_safe: bool,
-    additional_data: Optional[Dict[str, Any]] = None
+    is_safe: bool
 ) -> bool:
     """
     agent_logs tablosuna kayıt ekle
@@ -87,7 +86,6 @@ async def log_to_supabase(
         decision: Alınan karar (ALLOW, BLOCK, QUARANTINE, WARNING)
         security_score: Güvenlik skoru (0.0 - 1.0)
         is_safe: Güvenli mi? (True/False)
-        additional_data: Ek veriler (opsiyonel)
     
     Returns:
         bool: Başarılı mı?
@@ -99,17 +97,14 @@ async def log_to_supabase(
         return False
     
     try:
+        # Sadece veritabanında var olan kolonlar: agent_name, decision, security_score, is_safe
+        # security_score: float (0.88) -> int (88) çevrimi (bigint kolon tipi için)
         log_record = {
             "agent_name": agent_name,
             "decision": decision,
-            "security_score": security_score,
-            "is_safe": is_safe,
-            "created_at": datetime.utcnow().isoformat()
+            "security_score": int(security_score * 100),  # 0.88 -> 88
+            "is_safe": is_safe
         }
-        
-        # Ek veriler varsa ekle
-        if additional_data:
-            log_record["metadata"] = json.dumps(additional_data)
         
         result = supabase_client.table("agent_logs").insert(log_record).execute()
         
@@ -262,7 +257,7 @@ class ValidationResult(BaseModel):
 
 def get_timestamp() -> str:
     """ISO 8601 formatında zaman damgası döndür"""
-    return datetime.utcnow().isoformat() + "Z"
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def generate_hash(data: str) -> str:
@@ -292,20 +287,70 @@ async def verify_api_key(x_api_key: str = Header(None)) -> str:
     return x_api_key
 
 
+# ==================== Güvenlik Filtresi ====================
+
+# Tehlikeli kelimeler listesi
+DANGEROUS_KEYWORDS = ["tehdit", "saldırı", "hack", "sızıntı", "exploit", "malware", "trojan", "virus", "zararlı"]
+
+def check_dangerous_content(message: EYAVAPMessage) -> tuple[bool, List[str]]:
+    """
+    Mesaj içeriğinde tehlikeli kelimeler var mı kontrol et
+    
+    Returns:
+        tuple: (tehlikeli_mi, bulunan_kelimeler)
+    """
+    found_keywords = []
+    
+    # Mesaj içeriğini string'e çevir ve küçük harfe dönüştür
+    content_str = json.dumps(message.payload.content, ensure_ascii=False).lower()
+    
+    # Tehlikeli kelimeleri ara
+    for keyword in DANGEROUS_KEYWORDS:
+        if keyword.lower() in content_str:
+            found_keywords.append(keyword)
+    
+    return len(found_keywords) > 0, found_keywords
+
+
 def validate_message(message: EYAVAPMessage) -> ValidationResult:
     """Mesajı protokol kurallarına göre doğrula"""
     violations = []
     warnings = []
     recommendations = []
+    is_rejected = False
+    rejection_reasons = []
     
-    # Güvenlik skoru kontrolü
-    if message.security_score.overall_score < 0.70:
+    # 🔴 GÜVENLİK FİLTRESİ 1: Düşük güvenlik skoru kontrolü (< 0.50 = REJECT)
+    if message.security_score.overall_score < 0.50:
+        is_rejected = True
+        rejection_reasons.append(f"Güvenlik skoru kritik düzeyde düşük: {message.security_score.overall_score}")
+        violations.append({
+            "severity": "critical",
+            "type": "security_score_rejected",
+            "message": f"🚨 REDDEDİLDİ: Güvenlik skoru 50'nin altında: {message.security_score.overall_score}",
+            "required_value": 0.50
+        })
+        print(f"\033[91m🚨 GÜVENLİK UYARISI: {message.sender.agent_id} - Düşük güvenlik skoru ({message.security_score.overall_score}) - REDDEDİLDİ!\033[0m")
+    elif message.security_score.overall_score < 0.70:
         violations.append({
             "severity": "high",
             "type": "insufficient_security_score",
             "message": f"Güvenlik skoru çok düşük: {message.security_score.overall_score}",
             "required_value": 0.70
         })
+    
+    # 🔴 GÜVENLİK FİLTRESİ 2: Tehlikeli içerik kontrolü
+    has_dangerous_content, found_keywords = check_dangerous_content(message)
+    if has_dangerous_content:
+        is_rejected = True
+        rejection_reasons.append(f"Tehlikeli içerik tespit edildi: {', '.join(found_keywords)}")
+        violations.append({
+            "severity": "critical",
+            "type": "dangerous_content_detected",
+            "message": f"🚨 REDDEDİLDİ: Tehlikeli kelimeler tespit edildi: {', '.join(found_keywords)}",
+            "found_keywords": found_keywords
+        })
+        print(f"\033[91m🚨 GÜVENLİK UYARISI: {message.sender.agent_id} - Tehlikeli içerik ({', '.join(found_keywords)}) - REDDEDİLDİ!\033[0m")
     
     # Etik onay kontrolü
     if message.ethical_approval.approval_status not in ["approved", "conditional_approval"]:
@@ -348,11 +393,14 @@ def validate_message(message: EYAVAPMessage) -> ValidationResult:
     # Genel uyumluluk skoru hesapla
     compliance_score = calculate_compliance_score(message, violations)
     
-    # Aksiyon belirle
-    action = determine_action(compliance_score, violations)
+    # Aksiyon belirle (is_rejected parametresi ile)
+    action = determine_action(compliance_score, violations, is_rejected)
+    
+    # Reddedildiyse is_safe = False
+    is_valid = not is_rejected and len([v for v in violations if v["severity"] == "critical"]) == 0
     
     return ValidationResult(
-        valid=len([v for v in violations if v["severity"] == "critical"]) == 0,
+        valid=is_valid,
         overall_compliance=compliance_score,
         action=action,
         violations=violations,
@@ -383,8 +431,13 @@ def calculate_compliance_score(message: EYAVAPMessage, violations: List[Dict]) -
     return round(max(score - penalty, 0.0), 2)
 
 
-def determine_action(compliance_score: float, violations: List[Dict]) -> str:
+def determine_action(compliance_score: float, violations: List[Dict], is_rejected: bool = False) -> str:
     """Uyumluluk skoruna göre aksiyon belirle"""
+    
+    # 🔴 Güvenlik filtresi tarafından reddedildiyse
+    if is_rejected:
+        return "REJECT"
+    
     critical_violations = [v for v in violations if v.get("severity") == "critical"]
     
     if critical_violations or compliance_score < 0.50:
@@ -546,14 +599,7 @@ async def validate_message_endpoint(
         agent_name=message.sender.agent_id,
         decision=result.action,
         security_score=message.security_score.overall_score,
-        is_safe=is_safe,
-        additional_data={
-            "message_id": message.payload.message_id,
-            "receiver": message.receiver.agent_id,
-            "compliance_score": result.overall_compliance,
-            "violations_count": len(result.violations),
-            "endpoint": "validate"
-        }
+        is_safe=is_safe
     )
     
     return {
@@ -588,17 +634,24 @@ async def send_message(
         agent_name=message.sender.agent_id,
         decision=validation.action,
         security_score=message.security_score.overall_score,
-        is_safe=is_safe,
-        additional_data={
-            "message_id": message.payload.message_id,
-            "receiver": message.receiver.agent_id,
-            "compliance_score": validation.overall_compliance,
-            "violations_count": len(validation.violations),
-            "message_type": message.payload.message_type,
-            "priority": message.payload.priority,
-            "endpoint": "send"
-        }
+        is_safe=is_safe
     )
+    
+    # 🔴 REJECT - Güvenlik filtresi tarafından reddedildi
+    if validation.action == "REJECT":
+        print(f"\033[91m🚫 MESAJ REDDEDİLDİ: {message.sender.agent_id} -> {message.receiver.agent_id}\033[0m")
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "status": "rejected",
+                "message_id": message.payload.message_id,
+                "reason": "🚨 GÜVENLİK FİLTRESİ: Mesaj güvenlik politikalarını ihlal ediyor",
+                "compliance_score": validation.overall_compliance,
+                "violations": validation.violations,
+                "is_safe": False,
+                "timestamp": get_timestamp()
+            }
+        )
     
     if validation.action == "BLOCK":
         return JSONResponse(
