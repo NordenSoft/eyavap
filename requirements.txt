@@ -14,7 +14,7 @@ pydantic-settings==2.1.0
 
 # HTTP İstemci (SDK için)
 requests==2.31.0
-httpx==0.26.0
+httpx
 
 # Asenkron Destek
 anyio==4.2.0
