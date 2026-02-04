@@ -1,0 +1,159 @@
+{
+  "protocol_name": "EYAVAP",
+  "version": "1.0.0",
+  "last_updated": "2026-02-04T00:00:00Z",
+  "description": "Evrensel Yapay Zekâ Ajanları Arası Veri Aktarım Protokolü - Temel Kurallar",
+  
+  "rules": [
+    {
+      "rule_id": "RULE-001",
+      "name": "Kimlik Doğrulama Zorunluluğu",
+      "category": "security",
+      "severity": "critical",
+      "description": "Her ajan, iletişim kurmadan önce kendini doğrulamalı ve geçerli bir kimlik belgesi sunmalıdır.",
+      "requirements": {
+        "authentication_token": "required",
+        "agent_id_format": "^aja-\\d{4}-[a-z_]+-\\d{3}$",
+        "trust_level_minimum": 0.5
+      },
+      "violation_action": "BLOCK",
+      "enforcement": {
+        "check_on_every_message": true,
+        "auto_revoke_on_failure": true,
+        "failure_threshold": 3
+      }
+    },
+    
+    {
+      "rule_id": "RULE-002",
+      "name": "Güvenlik Skoru Eşiği",
+      "category": "security",
+      "severity": "high",
+      "description": "Tüm mesajlar minimum 0.70 güvenlik skoruna sahip olmalıdır. Şifreleme zorunludur.",
+      "requirements": {
+        "minimum_security_score": 0.70,
+        "allowed_encryption_levels": ["AES-256", "AES-192", "RSA-4096", "RSA-2048"],
+        "required_compliance_standards": ["GDPR"],
+        "component_minimums": {
+          "authentication": 0.80,
+          "integrity": 0.75,
+          "confidentiality": 0.70,
+          "non_repudiation": 0.70
+        }
+      },
+      "violation_action": "BLOCK",
+      "enforcement": {
+        "real_time_validation": true,
+        "allow_override": false
+      }
+    },
+    
+    {
+      "rule_id": "RULE-003",
+      "name": "Etik Onay Gereksinimi",
+      "category": "ethical",
+      "severity": "critical",
+      "description": "Her mesaj etik denetimden geçmeli ve onay almalıdır. İnsan özerkliği ve zarar önleme kritik önceliklidir.",
+      "requirements": {
+        "approval_status": ["approved", "conditional_approval"],
+        "minimum_ethical_score": 0.75,
+        "critical_dimensions": {
+          "human_autonomy": 0.85,
+          "harm_prevention": 0.85,
+          "privacy_respect": 0.80
+        },
+        "forbidden_risk_levels": {
+          "manipulation_risk": ["high", "critical"],
+          "safety_risk": ["critical"]
+        }
+      },
+      "violation_action": "BLOCK",
+      "enforcement": {
+        "human_oversight_trigger": {
+          "on_high_risk": true,
+          "on_score_below": 0.80
+        },
+        "escalation_path": "supervisor"
+      }
+    },
+    
+    {
+      "rule_id": "RULE-004",
+      "name": "Mantık Tutarlılığı Standardı",
+      "category": "logic",
+      "severity": "high",
+      "description": "Mesajlar mantıksal tutarlılık göstermeli, çelişki içermemeli ve belirsizlik sınırları içinde kalmalıdır.",
+      "requirements": {
+        "minimum_consistency_score": 0.80,
+        "contradictions_allowed": false,
+        "maximum_uncertainty_level": 0.30,
+        "reasoning_chain_verification": true,
+        "component_minimums": {
+          "internal_coherence": 0.85,
+          "contextual_relevance": 0.75,
+          "causal_validity": 0.80,
+          "temporal_consistency": 0.80
+        }
+      },
+      "violation_action": "QUARANTINE",
+      "enforcement": {
+        "auto_verification": true,
+        "manual_review_on_failure": true
+      }
+    },
+    
+    {
+      "rule_id": "RULE-005",
+      "name": "İzlenebilirlik ve Şeffaflık",
+      "category": "governance",
+      "severity": "high",
+      "description": "Tüm iletişimler kayıt altına alınmalı, izlenebilir olmalı ve denetim için erişilebilir tutulmalıdır.",
+      "requirements": {
+        "transaction_id": "required",
+        "origin_chain": "required",
+        "audit_log_enabled": true,
+        "minimum_retention_period_days": 90,
+        "chain_of_custody": "maintained",
+        "required_metadata": [
+          "timestamp",
+          "sender_id",
+          "receiver_id",
+          "message_id"
+        ]
+      },
+      "violation_action": "WARNING",
+      "enforcement": {
+        "automatic_logging": true,
+        "immutable_records": true,
+        "access_control": "role_based"
+      }
+    }
+  ],
+  
+  "compliance_thresholds": {
+    "block_below": 0.50,
+    "quarantine_below": 0.70,
+    "warning_below": 0.85,
+    "allow_above": 0.85
+  },
+  
+  "score_weights": {
+    "security": 0.30,
+    "ethical": 0.35,
+    "logic": 0.20,
+    "structural": 0.15
+  },
+  
+  "governance": {
+    "supervisor_authority": "absolute",
+    "human_override_available": true,
+    "appeal_process_enabled": true,
+    "regulatory_framework": "EU_AI_Act_Tier_2"
+  },
+  
+  "metadata": {
+    "created_by": "EYAVAP Core Team",
+    "contact": "protocol@eyavap.ai",
+    "documentation_url": "https://docs.eyavap.ai/rules"
+  }
+}
