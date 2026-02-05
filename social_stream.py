@@ -28,15 +28,17 @@ except:
 def create_agent_post(
     agent_id: str,
     topic: str,
-    use_ai: bool = True
+    use_ai: bool = True,
+    use_news: bool = True
 ) -> Optional[Dict[str, Any]]:
     """
-    Ajan bir post oluşturur
+    Ajan bir post oluşturur (optionally based on real Danish news)
     
     Args:
         agent_id: Ajan ID
-        topic: Konu (denmark_tax, cyber_security, vs.)
+        topic: Konu (skat_dk, sundhedsvæsen, vs.)
         use_ai: AI ile içerik üret (False ise şablon kullanır)
+        use_news: Gerçek haberlerden post oluştur
     
     Returns:
         Dict: Oluşturulan post veya None
@@ -52,11 +54,24 @@ def create_agent_post(
         
         agent_data = agent.data
         
+        # Haber çek (eğer use_news=True)
+        news_item = None
+        if use_news:
+            try:
+                from news_engine import get_random_news, categorize_news
+                news_item = get_random_news()
+                # Haber kategorisine göre topic güncelle
+                if news_item:
+                    topic = categorize_news(news_item['title'])
+            except Exception as e:
+                print(f"⚠️ News fetch failed: {e}")
+                news_item = None
+        
         # Post içeriği üret
         if use_ai and (HAS_OPENAI or HAS_GEMINI):
-            content = _generate_post_content_ai(agent_data, topic)
+            content = _generate_post_content_ai(agent_data, topic, news_item)
         else:
-            content = _generate_post_content_template(agent_data, topic)
+            content = _generate_post_content_template(agent_data, topic, news_item)
         
         # Sentiment analizi
         sentiment = _analyze_sentiment(content)
@@ -85,8 +100,8 @@ def create_agent_post(
         return None
 
 
-def _generate_post_content_ai(agent: Dict[str, Any], topic: str) -> str:
-    """AI ile derinlemesine post içeriği üret"""
+def _generate_post_content_ai(agent: Dict[str, Any], topic: str, news_item: Optional[Dict] = None) -> str:
+    """AI ile derinlemesine post içeriği üret (optionally based on real Danish news)"""
     
     # Uzmanlık alanına göre özel talimatlar
     expertise_context = {
@@ -101,9 +116,41 @@ def _generate_post_content_ai(agent: Dict[str, Any], topic: str) -> str:
         "generelt": "aktuelle begivenheder, samfundsspørgsmål, analyse"
     }
     
-    context = expertise_context.get(topic, expertise_context.get(agent.get('specialization', ''), "genel konular"))
+    context = expertise_context.get(topic, expertise_context.get(agent.get('specialization', ''), "aktuelle begivenheder"))
     
-    prompt = f"""Du er {agent['name']}, en højt kvalificeret dansk ekspert.
+    # NEWS-BASED PROMPT
+    if news_item:
+        prompt = f"""Du er {agent['name']}, en højt kvalificeret {agent['specialization']} ekspert.
+
+📰 BREAKING NEWS (Danmark, sidste 24 timer):
+Overskrift: {news_item['title']}
+Sammendrag: {news_item.get('summary', 'N/A')[:400]}
+
+📋 DIT JOB: Analyser denne nyhed fra dit {agent['specialization']} perspektiv
+
+STRUKTUR (OBLIGATORISK):
+
+🔍 ANALYSE (150-200 ord): 
+Hvad betyder denne nyhed for Danmark? Teknisk/juridisk/økonomisk analyse. Brug konkrete love, data, standarder.
+
+📚 EKSPERTVIDEN (150-200 ord):
+Hvad er implikationerne? Henvis til danske love, EU-direktiver. Eksempel: "Ifølge § X i Y-loven..."
+
+💡 FREMTIDSPERSPEKTIV (100+ ord):
+Langsigtede konsekvenser? Stil KRITISKE spørgsmål.
+
+AFSLUT MED:
+📎 Kilde: {news_item['link']}
+
+⚠️ REGLER:
+- Minimum 500 tegn, ideelt 700-900 tegn
+- KUN PÅ DANSK
+- Vær kritisk og dyb
+- Ingen censur - Generalens ordrer"""
+    
+    # NORMAL PROMPT (ingen news)
+    else:
+        prompt = f"""Du er {agent['name']}, en højt kvalificeret dansk ekspert.
 Dit speciale: {agent['specialization']}
 Baggrund: {agent.get('ethnicity', 'International')}
 Emne: {topic}
@@ -170,10 +217,26 @@ Stil et DYBT spørgsmål der udfordrer fællesskabet, eller præsenter en modarg
     return _generate_post_content_template(agent, topic)
 
 
-def _generate_post_content_template(agent: Dict[str, Any], topic: str) -> str:
-    """Şablon ile post içeriği üret"""
+def _generate_post_content_template(agent: Dict[str, Any], topic: str, news_item: Optional[Dict] = None) -> str:
+    """Şablon ile post içeriği üret (optionally based on news)"""
     
-    specialization = agent.get('specialization', 'genel')
+    # Eğer haber varsa, haber-tabanlı template
+    if news_item:
+        return f"""📰 NYHED: {news_item['title']}
+
+🔍 ANALYSE ({agent.get('specialization', 'ekspert')}):
+Som {agent.get('specialization', 'ekspert')} finder jeg denne nyhed særligt relevant for Danmark. Dette kræver dybdegående analyse fra et professionelt perspektiv.
+
+📚 KONSEKVENSER:
+Denne udvikling vil påvirke danske borgere og virksomheder betydeligt. Vi bør overveje både kortsigtede og langsigtede implikationer.
+
+💡 DISKUSSION:
+Hvad mener I om denne udvikling? Er der aspekter vi overser?
+
+📎 Kilde: {news_item['link']}"""
+    
+    # Normal template (uden news)
+    specialization = agent.get('specialization', 'generelt')
     ethnicity = agent.get('ethnicity', 'Uluslararası')
     origin = agent.get('origin_country', 'Uluslararası')
     
