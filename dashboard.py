@@ -1,99 +1,134 @@
+# V6.1 TORA - IDENTITY UPDATE
+import google.generativeai as genai
 import streamlit as st
-from agents import ask_the_government
-import datetime
+import time
 
-# 1. PAGE CONFIG
-st.set_page_config(
-    page_title="DK-OS Privacy",
-    page_icon="🇩🇰",
-    layout="centered"
-)
+# 1. API SETUP
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+except Exception as e:
+    st.error(f"API Error: {e}")
 
-# 2. STYLES
-st.markdown("""
-<style>
-    .stChatMessage {
-        border-radius: 15px;
-        padding: 10px;
+# 2. ROBUST GENERATION
+def generate_with_fallback(prompt):
+    candidate_models = [
+        'models/gemini-2.0-flash',
+        'models/gemini-2.0-flash-001',
+        'models/gemini-2.5-flash',
+        'models/gemini-flash-latest'
+    ]
+    
+    last_error = ""
+    for model_name in candidate_models:
+        try:
+            model = genai.GenerativeModel(model_name)
+            response = model.generate_content(prompt)
+            return response
+        except Exception as e:
+            last_error = str(e)
+            time.sleep(0.5)
+            continue
+            
+    class FakeResponse:
+        text = f"⚠️ Tora system overload. Error: {last_error}"
+    return FakeResponse()
+
+# --- ACTION PROTOCOL ---
+ACTION_PROTOCOL = """
+*** CRITICAL INSTRUCTION FOR ACTION MODE ***
+If the user asks for a letter, email, complaint, or application draft:
+1. You MUST write a formal template inside a CODE BLOCK (```text ... ```).
+2. Use placeholders like [MIT NAVN], [DATO] for parts the user needs to fill.
+3. The template MUST be in the target language (usually Danish).
+"""
+
+# 3. MINISTRIES
+MINISTRIES = {
+    "SAGLIK": {
+        "name": "🏥 Ministry of Health",
+        "icon": "🏥",
+        "style": "color: #e74c3c;",
+        "role": "Direct Senior Doctor.",
+        "context": "Topics: GP, Yellow Card, 1813, Waiting lists. Be honest about delays."
+    },
+    "EGITIM": {
+        "name": "🎓 Ministry of Education",
+        "icon": "🎓",
+        "style": "color: #3498db;",
+        "role": "Student Rights Defender.",
+        "context": "Topics: SU, University applications, ECTS, Dorms. Give insider tips."
+    },
+    "KARIYER": {
+        "name": "💼 Ministry of Employment",
+        "icon": "💼",
+        "style": "color: #2c3e50;",
+        "role": "Union Expert & Headhunter.",
+        "context": "Topics: Dagpenge, A-kasse, Job contracts. Warn about bad contracts."
+    },
+    "FINANS": {
+        "name": "💰 Ministry of Taxation",
+        "icon": "💰",
+        "style": "color: #f1c40f;",
+        "role": "Tax Optimization Expert.",
+        "context": "Topics: Fradrag (Deductions), Forskudsopgørelse. Maximize the user's money."
+    },
+    "EMLAK": {
+        "name": "🏠 Ministry of Housing",
+        "icon": "🏠",
+        "style": "color: #e67e22;",
+        "role": "Tenant Rights Defender.",
+        "context": "Topics: Deposit disputes, Rent control, Boligstøtte. FIGHT for the tenant."
+    },
+    "HUKUK": {
+        "name": "⚖️ Ministry of Justice",
+        "icon": "⚖️",
+        "style": "color: #8e44ad;",
+        "role": "Immigration Lawyer.",
+        "context": "Topics: Visa, Citizenship, Permanent Residence, Family Reunification."
+    },
+    "SOSYAL": {
+        "name": "🎉 Ministry of Culture",
+        "icon": "🎉",
+        "style": "color: #27ae60;",
+        "role": "Local Guide.",
+        "context": "Topics: Events, Hygge, Cheap eats, Hidden gems."
     }
-    .ministry-header {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 10px;
-        margin-bottom: 20px;
-        text-align: center;
-        border: 1px solid #e9ecef;
+}
+
+def ask_the_government(user_query):
+    # --- ROUTER (TORA IDENTITY) ---
+    router_prompt = f"""
+    You are 'Tora', the AI Administrator of Denmark.
+    Categorize query: "{user_query}"
+    Options: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL.
+    Output ONLY category code.
+    """
+    
+    router_res = generate_with_fallback(router_prompt)
+    try:
+        category_code = router_res.text.strip().upper().replace(".", "").replace(" ", "")
+    except:
+        category_code = "SOSYAL"
+
+    ministry = MINISTRIES.get(category_code, MINISTRIES["SOSYAL"])
+    
+    # --- AGENT ---
+    agent_prompt = f"""
+    ROLE: {ministry['role']}
+    CONTEXT: {ministry['context']}
+    {ACTION_PROTOCOL}
+    
+    USER QUERY: "{user_query}"
+    
+    INSTRUCTION: Answer directly as part of the 'Tora' system. Detect language and respond in SAME language.
+    """
+    
+    final_res = generate_with_fallback(agent_prompt)
+    
+    return {
+        "ministry_name": ministry['name'],
+        "ministry_icon": ministry['icon'],
+        "ministry_style": ministry['style'],
+        "answer": final_res.text,
+        "category": category_code
     }
-    .privacy-badge {
-        background-color: #d4edda;
-        color: #155724;
-        padding: 10px;
-        border-radius: 5px;
-        font-size: 12px;
-        text-align: center;
-        border: 1px solid #c3e6cb;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-# 3. SIDEBAR (GİZLİLİK ODAKLI)
-with st.sidebar:
-    st.title("🇩🇰 DK-OS")
-    st.caption("v5.3 | Stable & Secure")
-    
-    st.markdown("---")
-    
-    # LOG YERİNE GÜVEN ROZETİ
-    st.markdown("""
-    <div class="privacy-badge">
-        🔒 <b>100% Anonymous</b><br>
-        No personal data is stored.<br>
-        Your chat is private.
-    </div>
-    """, unsafe_allow_html=True)
-    
-    st.markdown("---")
-    
-    if st.button("🗑️ Clear History", type="primary"):
-        st.session_state.messages = []
-        st.rerun()
-
-# 4. HEADER
-st.title("🇩🇰 DK-OS")
-st.markdown("### Digital State Assistant")
-st.markdown("*Ask freely. No bureaucracy, no tracking.*")
-
-# 5. CHAT LOGIC
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"], unsafe_allow_html=True)
-
-if prompt := st.chat_input("Type here..."):
-    # GİZLİ LOGLAMA (Sadece sen siyah ekranda görürsün)
-    print(f"--- NEW USER QUERY: {prompt} ---")
-    
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.spinner("Processing..."):
-        response_data = ask_the_government(prompt)
-        
-        # GİZLİ LOGLAMA 2
-        print(f"--- ASSIGNED TO: {response_data['ministry_name']} ---")
-        
-        header_html = f"""
-        <div class="ministry-header">
-            <div style="font-size: 40px;">{response_data['ministry_icon']}</div>
-            <div style="{response_data['ministry_style']} font-weight:bold; font-size: 18px;">{response_data['ministry_name']}</div>
-        </div>
-        """
-        full_response = header_html + response_data["answer"]
-
-    with st.chat_message("assistant"):
-        st.markdown(full_response, unsafe_allow_html=True)
-    
-    st.session_state.messages.append({"role": "assistant", "content": full_response})
