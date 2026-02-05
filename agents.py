@@ -1,3 +1,5 @@
+# GUNCEL VERSIYON: 2.0 FLASH - DANIMARKA
+# GUNCEL VERSIYON: 2.0 FLASH - DANIMARKA
 import google.generativeai as genai
 import streamlit as st
 import time
@@ -15,11 +17,10 @@ def generate_with_fallback(prompt):
     """
     # SENİN LİSTENE GÖRE GÜNCELLENMİŞ SİLAHLAR:
     candidate_models = [
-        'models/gemini-2.0-flash',          # 1. TERCİH: Çok hızlı ve çok zeki (Listende var)
-        'models/gemini-2.0-flash-001',      # 2. TERCİH: Alternatif versiyon
-        'models/gemini-2.5-flash',          # 3. TERCİH: En yeni teknoloji
-        'models/gemini-2.0-flash-lite',     # 4. TERCİH: Hafif sıklet (Çok hızlı)
-        'models/gemini-flash-latest'        # 5. TERCİH: Genel yönlendirme
+        'models/gemini-2.0-flash',          # 1. TERCİH: Canavar
+        'models/gemini-2.0-flash-001',      # 2. TERCİH: Alternatif
+        'models/gemini-2.5-flash',          # 3. TERCİH: Gelecek Nesil
+        'models/gemini-flash-latest'        # 4. TERCİH: Genel
     ]
     
     last_error = ""
@@ -38,7 +39,7 @@ def generate_with_fallback(prompt):
             time.sleep(1) 
             continue
             
-    # Hiçbiri çalışmazsa (İmkansız ama ne olur ne olmaz)
+    # Hiçbiri çalışmazsa
     class FakeResponse:
         text = f"⚠️ Sistem şu an cevap veremiyor. Hata Detayı: {last_error}"
     return FakeResponse()
