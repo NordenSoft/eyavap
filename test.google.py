@@ -1,7 +1,12 @@
+import os
 import google.generativeai as genai
+from dotenv import load_dotenv
 
-# 1. Anahtarı direkt veriyoruz (Sadece bu test için)
-TEST_KEY = "AIzaSyALCahjkadpMqCbRQne2F5P4r7k7MRilf8"
+# 1. Anahtarı .env'den oku
+load_dotenv()
+TEST_KEY = os.getenv("GEMINI_API_KEY", "").strip()
+if not TEST_KEY:
+    raise SystemExit("❌ GEMINI_API_KEY bulunamadı (.env dosyasını kontrol edin).")
 genai.configure(api_key=TEST_KEY)
 
 print("\n➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖➖")
