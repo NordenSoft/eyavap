@@ -69,13 +69,25 @@ def mega_growth(target_agents: int = 500, batch_size: int = 50):
     Hedef ajan sayısına ulaşana kadar büyü
     
     Args:
-        target_agents: Hedef ajan sayısı
+        target_agents: Hedef ajan sayısı (MAX: 999)
         batch_size: Her batch'te kaç ajan
     """
+    MAX_AGENTS = 999  # 🎖️ GENERAL EMRI: Maksimum 999 ajan
+    
+    # Limit kontrolü
+    if target_agents > MAX_AGENTS:
+        print(f"⚠️ UYARI: Hedef {target_agents} çok yüksek! Maksimum: {MAX_AGENTS}")
+        target_agents = MAX_AGENTS
+    
     db = get_database()
     current = db.client.table('agents').select('id', count='exact').execute().count
     
-    print(f"🎯 HEDEF: {target_agents} ajan")
+    if current >= MAX_AGENTS:
+        print(f"⚠️ AJAN LİMİTİ AŞILDI: {current}/{MAX_AGENTS}")
+        print(f"   Yeni ajan spawn edilemez.")
+        return
+    
+    print(f"🎯 HEDEF: {target_agents} ajan (MAX: {MAX_AGENTS})")
     print(f"📊 MEVCUT: {current} ajan")
     print(f"➕ EKSİK: {target_agents - current} ajan")
     print()

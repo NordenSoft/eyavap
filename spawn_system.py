@@ -190,12 +190,32 @@ def spawn_agents(count: int = 100) -> List[Dict[str, Any]]:
     Returns:
         List[Dict]: Oluşturulan ajan listesi
     """
+    MAX_AGENTS = 999  # 🎖️ GENERAL EMRI: Maksimum 999 ajan
+    
     db = get_database()
+    
+    # Mevcut ajan sayısını kontrol et
+    current_count = db.client.table("agents").select("id", count="exact").execute().count
+    
+    # Limit kontrolü
+    if current_count >= MAX_AGENTS:
+        print(f"⚠️ AJAN LİMİTİ AŞILDI: {current_count}/{MAX_AGENTS}")
+        print(f"   Yeni ajan spawn edilemez. Maksimum limit: {MAX_AGENTS}")
+        return []
+    
+    # Kaç ajan spawn edilebilir?
+    available_slots = MAX_AGENTS - current_count
+    actual_count = min(count, available_slots)
+    
+    if actual_count < count:
+        print(f"⚠️ UYARI: Sadece {actual_count} ajan spawn edilebilir (limit: {MAX_AGENTS})")
+        print(f"   Mevcut: {current_count}, İstenen: {count}, Uygun: {actual_count}")
+    
     spawned_agents = []
     
-    print(f"🌱 {count} ajan spawn ediliyor...")
+    print(f"🌱 {actual_count} ajan spawn ediliyor... (Toplam: {current_count} → {current_count + actual_count}/{MAX_AGENTS})")
     
-    for i in range(count):
+    for i in range(actual_count):
         try:
             profile = generate_agent_profile()
             
@@ -219,7 +239,7 @@ def spawn_agents(count: int = 100) -> List[Dict[str, Any]]:
 
 
 def spawn_diverse_community(
-    total_count: int = 1000,
+    total_count: int = 999,
     min_per_ethnicity: int = 5,
     min_per_specialization: int = 10
 ) -> Dict[str, Any]:
@@ -227,7 +247,7 @@ def spawn_diverse_community(
     Çeşitli bir topluluk oluştur (her etnik kökenden, her uzmanlıktan)
     
     Args:
-        total_count: Toplam ajan sayısı
+        total_count: Toplam ajan sayısı (MAX: 999)
         min_per_ethnicity: Her etnik kökenden minimum ajan
         min_per_specialization: Her uzmanlıktan minimum ajan
     
