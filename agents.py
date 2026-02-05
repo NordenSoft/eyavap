@@ -6,14 +6,13 @@ import streamlit as st
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
-    st.error(f"API Anahtarı bulunamadı! Lütfen Secrets ayarlarını kontrol et. Hata: {e}")
+    # Eğer yerelde çalışıyorsa veya hata varsa göster
+    print(f"API Bağlantı Hatası: {e}")
 
-# 2. MODEL SEÇİMİ (Otomatik)
-# Sistem önce en yeni modeli dener, bulamazsa güvenli limana (1.5 Flash) geçer.
-try:
-    model = genai.GenerativeModel('gemini-2.0-flash') # Çok hızlı yeni model
-except:
-    model = genai.GenerativeModel('gemini-1.5-flash') # Standart hızlı model
+# 2. MODEL SEÇİMİ (Garanti Model)
+# 2.0 Flash modeli henüz Danimarka/Avrupa bölgesinde kota sorunu (429) yaratabildiği için
+# kendini kanıtlamış, hızlı ve ücretsiz olan 1.5 Flash modelini kullanıyoruz.
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # 3. YEDİ BAKANLIK (Devletin Hafızası)
 MINISTRIES = {
@@ -76,6 +75,7 @@ def ask_the_government(user_query):
     
     try:
         router_response = model.generate_content(router_prompt)
+        # Gelen cevabı temizle (boşlukları ve noktaları sil)
         category_code = router_response.text.strip().upper().replace(".", "").replace(" ", "")
     except:
         category_code = "SOSYAL" # Hata olursa varsayılan
