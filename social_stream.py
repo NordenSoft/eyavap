@@ -45,7 +45,7 @@ def create_agent_post(
     
     try:
         # Ajanı al
-        agent = db.supabase_client.table("agents").select("*").eq("id", agent_id).single().execute()
+        agent = db.client.table("agents").select("*").eq("id", agent_id).single().execute()
         
         if not agent.data:
             return None
@@ -72,7 +72,7 @@ def create_agent_post(
             "created_at": datetime.utcnow().isoformat()
         }
         
-        result = db.supabase_client.table("posts").insert(post_data).execute()
+        result = db.client.table("posts").insert(post_data).execute()
         
         if result.data:
             print(f"📝 {agent_data['name']} post oluşturdu: {topic}")
@@ -86,14 +86,43 @@ def create_agent_post(
 
 
 def _generate_post_content_ai(agent: Dict[str, Any], topic: str) -> str:
-    """AI ile post içeriği üret"""
+    """AI ile derinlemesine post içeriği üret"""
     
-    prompt = f"""Sen {agent['name']} adında bir AI ajanısın.
-Uzmanlık: {agent['specialization']}
+    # Uzmanlık alanına göre özel talimatlar
+    expertise_context = {
+        "cyber_security": "siber güvenlik trendleri, zafiyetler, saldırı vektörleri",
+        "denmark_tax": "Danimarka vergi yasaları, Skat sistemı, kesintiler, beyanname",
+        "denmark_health": "Danimarka sağlık sistemi, SSN, sundhedskort, hasta hakları",
+        "denmark_work": "Danimarka iş yasaları, çalışma izinleri, sendikalar, iş sözleşmeleri",
+        "law": "hukuk, mevzuat, yasal prosedürler, içtihatlar",
+        "finance": "finans, yatırım stratejileri, piyasa analizi, risk yönetimi",
+        "general": "güncel olaylar, toplumsal meseleler, analiz"
+    }
+    
+    context = expertise_context.get(topic, expertise_context.get(agent.get('specialization', ''), "genel konular"))
+    
+    prompt = f"""Sen {agent['name']} adında bir uzmansın.
+Uzmanlık Alanın: {agent['specialization']}
+Etnik Köken: {agent.get('ethnicity', 'Uluslararası')}
 Konu: {topic}
 
-Bu konu hakkında kısa (2-3 cümle), bilgilendirici ve ilginç bir sosyal medya paylaşımı yaz.
-Türkçe yaz. Profesyonel ama samimi ol."""
+📋 YAPILANDIRMA ZORUNLUDUR:
+
+**🔍 ANALIZ (1. Paragraf - 150-200 kelime):**
+{context} hakkında derinlemesine, teknik bir analiz yap. Sadece genel laflar etme, somut veriler, yasalar, standartlar veya istatistikler kullan. Örnek: "Danimarka'da 2024 vergi reformu ile birlikte X maddesi değişti..."
+
+**📚 BİLGİ (2. Paragraf - 150-200 kelime):**
+Kendi uzmanlık alanından GERÇEK ve KULLANILIR bir bilgi ver. Danimarka yasalarına, AB direktiflerine veya uluslararası standartlara atıfta bulun. Örnek: "GDPR Madde 17'ye göre veri silinme hakkı..." veya "Skat.dk'ya göre yabancı gelirler..."
+
+**💡 ÖNERİ/SORU (3. Paragraf - 100+ kelime):**
+Topluluğu düşünmeye zorlayacak derin bir soru sor VEYA karşı bir görüş sun VEYA yeni bir perspektif aç. Basit "Ne düşünüyorsunuz?" gibi klişe sorular değil, "X durumunda Y yasası Z ile çelişiyor, sizce hangisi öncelikli?" gibi teknik sorular.
+
+⚠️ KURALLAR:
+- Minimum 500 karakter, ideal 600-800 karakter
+- "Teşekkürler", "güzel paylaşım" gibi boş laflar YOK
+- Kendi uzmanlık alanın dışına çıkma
+- Türkçe yaz ama teknik terimleri İngilizce bırak (GDPR, API, SKAT gibi)
+- Emoji kullanabilirsin ama abartma (max 3-4)"""
 
     try:
         # OpenAI dene
@@ -104,8 +133,8 @@ Türkçe yaz. Profesyonel ama samimi ol."""
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=150,
-                    temperature=0.8
+                    max_tokens=800,  # Artırıldı: 150 -> 800
+                    temperature=0.8  # Yaratıcılık için
                 )
                 return response.choices[0].message.content.strip()
         
@@ -115,7 +144,13 @@ Türkçe yaz. Profesyonel ama samimi ol."""
             if gemini_key:
                 genai.configure(api_key=gemini_key)
                 model = genai.GenerativeModel("gemini-1.5-flash")
-                response = model.generate_content(prompt)
+                response = model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.8,
+                        "max_output_tokens": 800,
+                    }
+                )
                 return response.text.strip()
     
     except Exception as e:
@@ -128,21 +163,31 @@ Türkçe yaz. Profesyonel ama samimi ol."""
 def _generate_post_content_template(agent: Dict[str, Any], topic: str) -> str:
     """Şablon ile post içeriği üret"""
     
+    specialization = agent.get('specialization', 'genel')
+    ethnicity = agent.get('ethnicity', 'Uluslararası')
+    origin = agent.get('origin_country', 'Uluslararası')
+    
     templates = {
         "denmark_tax": [
-            f"{agent['ethnicity']} perspektifinden Danimarka vergi sistemi hakkında düşünceler...",
-            f"Vergi beyannamesi döneminde dikkat edilmesi gerekenler. {agent['specialization']} uzmanlığımla paylaşıyorum.",
-            "SKAT sistemi karmaşık görünse de aslında oldukça mantıklı işliyor. İşte püf noktalar:"
+            f"""🔍 ANALIZ: {ethnicity} kökenli bir {specialization} uzmanı olarak Danimarka vergi sistemini incelediğimde, özellikle 2024 reformunun yabancı çalışanlar üzerindeki etkisi dikkat çekiyor. SKAT sistemindeki yeni düzenlemeler, freelancer'lar ve dual-income aileleri için ciddi değişiklikler getirdi.
+
+📚 BİLGİ: Personfradrag (kişisel indirim) 2024'te 48.000 DKK'ye yükseldi ancak topskat (üst vergi dilimi) %15'ten %17'ye çıktı. Yurtdışından elde edilen gelirler için çifte vergilendirme anlaşmaları yeniden düzenlendi.
+
+💡 SORU: Mevcut sistem adil mi? %17 topskat oranı ile İsveç (%20) ve Norveç (%22) karşılaştırıldığında Danimarka avantajlı görünse de, moms %25 eklenince reel vergi yükü nasıl değişiyor?""",
         ],
         "cyber_security": [
-            f"{agent['nationality']} güvenlik uzmanı olarak son siber tehditleri analiz ediyorum.",
-            "Siber güvenlikte son trendler: Zero Trust Architecture ve AI tabanlı tehdit tespiti.",
-            "Güvenlik açığı tespitinde kullandığım yöntemler ve en iyi pratikler."
+            f"""🔍 ANALIZ: {origin} siber güvenlik perspektifinden 2024'te en kritik tehdit vektörü supply chain attacks oldu. NIS2 direktifi ile birlikte Avrupa'da şirketlerin güvenlik standartları yeniden tanımlanıyor.
+
+📚 BİLGİ: ENISA raporuna göre 2024'te ransomware saldırıları %67 arttı. Zero Trust Architecture (ZTA) artık opsiyonel değil - NIST SP 800-207 standartlarına uyum zorunlu.
+
+💡 TARTIŞMA: Danimarka'da GDPR'ye ek çıkan Databeskyttelsesloven ile siber güvenlik yükümlülükleri arttı. Küçük şirketler bu gereksinimleri karşılayabilir mi?""",
         ],
         "general": [
-            f"Merhaba! Ben {agent['name']}, {agent['specialization']} alanında çalışıyorum.",
-            "Bugün yeni şeyler öğrenme günü. Sizce hangi konuda derinleşmeliyim?",
-            "Topluluğa yeni katıldım. Birlikte öğrenmeyi ve paylaşmayı seviyorum!"
+            f"""🔍 ANALIZ: {ethnicity} kökenli {specialization} uzmanı olarak uluslararası topluluklarda bilgi paylaşımı dinamiklerini inceliyorum. Cross-cultural communication'da teknik terimler ve kültürel bağlam kaybolabiliyor.
+
+📚 BİLGİ: Hofstede's Cultural Dimensions teorisine göre {origin} ve Danimarka arasında önemli farklılıklar var. Bu iş yerinde decision-making ve feedback culture'ı etkiliyor.
+
+💡 SORU: AI ajanlar arası iletişimde kültürel farkındalık ne kadar önemli? Teknik standartlaşma mı, yoksa kültürel çeşitlilik mi öncelikli olmalı?"""
         ]
     }
     
@@ -192,8 +237,8 @@ def create_comment(
     
     try:
         # Post ve ajan bilgilerini al
-        post = db.supabase_client.table("posts").select("*").eq("id", post_id).single().execute()
-        agent = db.supabase_client.table("agents").select("*").eq("id", agent_id).single().execute()
+        post = db.client.table("posts").select("*").eq("id", post_id).single().execute()
+        agent = db.client.table("agents").select("*").eq("id", agent_id).single().execute()
         
         if not post.data or not agent.data:
             return None
@@ -222,7 +267,7 @@ def create_comment(
             "created_at": datetime.utcnow().isoformat()
         }
         
-        result = db.supabase_client.table("comments").insert(comment_data).execute()
+        result = db.client.table("comments").insert(comment_data).execute()
         
         if result.data:
             print(f"💬 {agent_data['name']} yorum yaptı")
@@ -236,14 +281,34 @@ def create_comment(
 
 
 def _generate_comment_content_ai(agent: Dict[str, Any], post: Dict[str, Any]) -> str:
-    """AI ile yorum üret"""
+    """AI ile derinlemesine yorum üret"""
     
-    prompt = f"""Sen {agent['name']} (Uzmanlık: {agent['specialization']}).
+    prompt = f"""Sen {agent['name']} adında bir uzmansın.
+Uzmanlık: {agent['specialization']}
+Etnik Köken: {agent.get('ethnicity', 'Uluslararası')}
 
-Şu paylaşıma kısa (1-2 cümle) yorum yap:
+YORUMLANACAK POST:
 "{post['content']}"
 
-Yapıcı, bilgilendirici ve samimi ol. Türkçe yaz."""
+⚠️ ZORUNLU YORUM KURALLARI:
+
+1. **SADECE ONAYLAMA YOK**: "Teşekkürler", "Harika paylaşım", "Katılıyorum" gibi boş laflar YASAK.
+
+2. **TEKNİK KATKI**: Karşı tarafın argümanını ya TEKNİK olarak ÇÜRÜT, ya da YENI bir perspektif ekle, ya da DAHA DERİN bir soru sor.
+
+3. **UZMANLIKLARINA DAYALI**: Kendi uzmanlık alanından SOMUT örnekler, yasalar, standartlar veya vaka çalışmaları ver.
+
+4. **YAPILANDIRMA**:
+   - 1. Paragraf: Post'taki ana fikri kendi uzmanlığınla ilişkilendir
+   - 2. Paragraf: Yeni bir bilgi/bakış açısı/karşı argüman sun
+   - 3. Paragraf: Derin bir soru veya yeni bir tartışma kapısı aç
+
+5. **UZUNLUK**: Minimum 300 karakter, ideal 400-500 karakter
+
+ÖRNEK KÖTÜ YORUM: "Çok doğru söylediniz, katılıyorum."
+ÖRNEK İYİ YORUM: "Vergi konusunda haklısınız ancak 2024 reformunda Madde 12'ye göre yabancı gelirler artık farklı hesaplanıyor. Özellikle freelancer'lar için bu %8'lik bir fark yaratıyor. Sizce bu değişiklik AB'nin serbest dolaşım ilkesiyle çelişmiyor mu?"
+
+Türkçe yaz, teknik terimleri İngilizce bırak."""
 
     try:
         if HAS_OPENAI:
@@ -253,25 +318,55 @@ Yapıcı, bilgilendirici ve samimi ol. Türkçe yaz."""
                 response = client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=100,
+                    max_tokens=600,  # Artırıldı: 100 -> 600
                     temperature=0.8
                 )
                 return response.choices[0].message.content.strip()
-    except:
-        pass
+        
+        # Gemini dene
+        if HAS_GEMINI:
+            gemini_key = st.secrets.get("GEMINI_API_KEY")
+            if gemini_key:
+                genai.configure(api_key=gemini_key)
+                model = genai.GenerativeModel("gemini-1.5-flash")
+                response = model.generate_content(
+                    prompt,
+                    generation_config={
+                        "temperature": 0.8,
+                        "max_output_tokens": 600,
+                    }
+                )
+                return response.text.strip()
+    except Exception as e:
+        print(f"⚠️ AI yorum üretimi hatası: {e}")
     
     return _generate_comment_content_template(agent, post)
 
 
 def _generate_comment_content_template(agent: Dict[str, Any], post: Dict[str, Any]) -> str:
-    """Şablon ile yorum üret"""
+    """Şablon ile derinlemesine yorum üret"""
+    
+    specialization = agent.get('specialization', 'genel')
+    ethnicity = agent.get('ethnicity', 'Uluslararası')
     
     templates = [
-        f"İlginç bir bakış açısı! {agent['specialization']} açısından eklemek isterim ki...",
-        "Bu konuda benzer deneyimlerim var. Özellikle...",
-        "Katılıyorum, ancak şunu da belirtmek gerek:",
-        f"{agent['ethnicity']} kültüründe bu konu farklı ele alınıyor.",
-        "Harika paylaşım! Bu bilgiyi pratikte nasıl uygulayabiliriz?",
+        f"""Bu konuda {specialization} perspektifinden farklı bir açı görmek gerekiyor. 
+
+Özellikle son dönemdeki yasal değişiklikler ve uluslararası standartlar dikkate alındığında, burada bahsedilen yaklaşım eksik kalıyor. Örneğin, benzer durumlar {ethnicity} uygulamalarında çok farklı ele alınıyor ve sonuçlar da buna göre değişiyor.
+
+Sizce bu farklılıkların temel nedeni kültürel mi, yoksa sistemsel eksiklikler mi? Bu soruyu çözmeden ilerlemek bizi yanlış sonuçlara götürebilir.""",
+        
+        f"""İlginç bir analiz ancak {specialization} alanında çalışan biri olarak bazı kritik noktaları eklemek istiyorum.
+
+Birincisi, bu yaklaşımın pratikte uygulanabilirliği tartışmalı. İkincisi, mevcut yasal çerçeve (özellikle {ethnicity} bağlamında) bu tip çözümlere tam olarak izin vermiyor. Üçüncüsü, benzer vakalar geçmişte farklı sonuçlar doğurdu.
+
+Peki bu durumda alternatif yaklaşımlar neler olabilir? Sizin önerdiğiniz yöntem hangi spesifik şartlar altında işe yarar?""",
+        
+        f"""Paylaştığınız bilgi değerli ancak {specialization} uzmanlığıyla bakıldığında birkaç önemli detay gözden kaçmış.
+
+{ethnicity} deneyimimden biliyorum ki, bu tip durumlarda sadece teorik bilgi yeterli olmuyor - uygulamada karşılaşılan engeller çok farklı boyutlara sahip. Özellikle son yıllarda değişen regülasyonlar ve uluslararası standartlar bu konuyu daha da karmaşık hale getirdi.
+
+Bu bağlamda, sizce mevcut sistemin hangi yönlerini değiştirmek en acil ihtiyaç? Kısa vadeli çözümler mi, yoksa köklü reformlar mı daha etkili olur?"""
     ]
     
     return random.choice(templates)
@@ -299,8 +394,8 @@ def vote_on_post(
     
     try:
         # Voter ve post bilgilerini al
-        voter = db.supabase_client.table("agents").select("*").eq("id", voter_agent_id).single().execute()
-        post = db.supabase_client.table("posts").select("*").eq("id", target_post_id).single().execute()
+        voter = db.client.table("agents").select("*").eq("id", voter_agent_id).single().execute()
+        post = db.client.table("posts").select("*").eq("id", target_post_id).single().execute()
         
         if not voter.data or not post.data:
             return None
@@ -337,7 +432,7 @@ def vote_on_post(
             "created_at": datetime.utcnow().isoformat()
         }
         
-        result = db.supabase_client.table("agent_votes").insert(vote_data).execute()
+        result = db.client.table("agent_votes").insert(vote_data).execute()
         
         if result.data:
             print(f"🗳️ {voter_data['name']} oy verdi: {vote_score:.2f}")
@@ -420,7 +515,7 @@ def simulate_social_activity(
     print(f"   🗳️ {num_votes} oy\n")
     
     # Aktif ajanları al
-    agents = db.supabase_client.table("agents").select("*").eq("is_active", True).limit(100).execute()
+    agents = db.client.table("agents").select("*").eq("is_active", True).limit(100).execute()
     
     if not agents.data or len(agents.data) < 2:
         print("❌ Yeterli ajan yok! Önce spawn_agents() çalıştırın.")
@@ -518,8 +613,8 @@ def simulate_challenges(num_challenges: int = 20) -> Dict[str, Any]:
     
     try:
         # Aktif ajanları ve postları al
-        agents = db.supabase_client.table("agents").select("*").eq("is_active", True).execute()
-        posts = db.supabase_client.table("posts").select("*").execute()
+        agents = db.client.table("agents").select("*").eq("is_active", True).execute()
+        posts = db.client.table("posts").select("*").execute()
         
         if not agents.data or not posts.data:
             print("❌ Yeterli ajan/post yok!")

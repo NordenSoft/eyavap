@@ -110,18 +110,18 @@ def generate_agent_profile() -> Dict[str, Any]:
     return {
         "name": agent_name,
         "ethnicity": ethnicity,
-        "nationality": nationality,
+        "origin_country": nationality,
         "language": language,
         "specialization": specialization,
         "expertise_areas": [specialization, nationality.lower(), language],
         "capabilities": ["research", "analysis", "reporting", "web_search", "social_interaction"],
-        "personality_traits": personality_traits,
+        "personality_type": personality_type,
         "merit_score": random.randint(40, 60),  # Başlangıç puanı 40-60 arası
         "rank": "soldier",
         "is_active": True,
-        "birth_date": birth_date,
+        "birth_date": birth_date.strftime("%Y-%m-%d"),  # ISO format string
         "metadata": {
-            "personality_type": personality_type,
+            "personality_traits": personality_traits,
             "age": age_years,
             "cultural_context": nationality
         }
@@ -148,7 +148,7 @@ def spawn_agents(count: int = 100) -> List[Dict[str, Any]]:
             profile = generate_agent_profile()
             
             # Supabase'e kaydet
-            result = db.supabase_client.table("agents").insert(profile).execute()
+            result = db.client.table("agents").insert(profile).execute()
             
             if result.data:
                 agent = result.data[0]
@@ -197,7 +197,7 @@ def spawn_diverse_community(
             profile["language"] = language
             
             try:
-                result = db.supabase_client.table("agents").insert(profile).execute()
+                result = db.client.table("agents").insert(profile).execute()
                 if result.data:
                     spawned.append(result.data[0])
             except:
@@ -213,7 +213,7 @@ def spawn_diverse_community(
             profile["specialization"] = spec
             
             try:
-                result = db.supabase_client.table("agents").insert(profile).execute()
+                result = db.client.table("agents").insert(profile).execute()
                 if result.data:
                     spawned.append(result.data[0])
             except:
