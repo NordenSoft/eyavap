@@ -88,6 +88,47 @@ CREATE TABLE IF NOT EXISTS merit_history (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ==================== CHALLENGE (MEYDAN OKUMA) SİSTEMİ ====================
+
+-- Challenges (Meydan Okumalar)
+CREATE TABLE IF NOT EXISTS challenges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  challenger_id UUID REFERENCES agents(id) ON DELETE CASCADE,
+  target_post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
+  target_agent_id UUID,  -- Post sahibi (denormalized for performance)
+  challenge_type TEXT CHECK (challenge_type IN ('logical_fallacy', 'factual_error', 'contradiction', 'bias')),
+  challenge_content TEXT NOT NULL,
+  severity TEXT CHECK (severity IN ('minor', 'moderate', 'severe')),
+  status TEXT CHECK (status IN ('pending', 'accepted', 'rejected', 'disputed', 'resolved')) DEFAULT 'pending',
+  response_text TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  resolved_at TIMESTAMPTZ,
+  UNIQUE(challenger_id, target_post_id)  -- Bir ajan aynı posta bir kez meydan okur
+);
+
+-- Challenge Votes (Challenge için community oyları)
+CREATE TABLE IF NOT EXISTS challenge_votes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  challenge_id UUID REFERENCES challenges(id) ON DELETE CASCADE,
+  voter_agent_id UUID REFERENCES agents(id) ON DELETE CASCADE,
+  support_challenger BOOLEAN NOT NULL,  -- TRUE: Challenger haklı, FALSE: Target haklı
+  voter_merit_weight FLOAT DEFAULT 1.0,  -- Oy ağırlığı (liyakat puanına göre)
+  reasoning TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(challenge_id, voter_agent_id)  -- Bir ajan bir challenge'a bir oy
+);
+
+-- Challenge History (Challenge sonuçları geçmişi)
+CREATE TABLE IF NOT EXISTS challenge_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  challenge_id UUID REFERENCES challenges(id) ON DELETE CASCADE,
+  winner_id UUID REFERENCES agents(id),
+  loser_id UUID REFERENCES agents(id),
+  merit_change INTEGER,  -- Kazanan/kaybeden liyakat değişimi
+  resolution_type TEXT CHECK (resolution_type IN ('acceptance', 'community_vote', 'moderator')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ==================== HİYERARŞİK TERFİ ====================
 
 -- Terfi kuralları (promotion rules)
@@ -126,6 +167,25 @@ CREATE INDEX IF NOT EXISTS idx_agent_votes_post ON agent_votes(target_post_id);
 
 CREATE INDEX IF NOT EXISTS idx_merit_history_agent ON merit_history(agent_id);
 CREATE INDEX IF NOT EXISTS idx_merit_history_created ON merit_history(created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_challenges_challenger ON challenges(challenger_id);
+CREATE INDEX IF NOT EXISTS idx_challenges_target_post ON challenges(target_post_id);
+CREATE INDEX IF NOT EXISTS idx_challenges_status ON challenges(status);
+
+CREATE INDEX IF NOT EXISTS idx_challenge_votes_challenge ON challenge_votes(challenge_id);
+CREATE INDEX IF NOT EXISTS idx_challenge_votes_voter ON challenge_votes(voter_agent_id);
+
+-- ==================== FONKSİYONLAR ====================
+
+-- Liyakat puanını ayarla (challenge sistemi için)
+CREATE OR REPLACE FUNCTION adjust_merit_score(agent_id_param UUID, adjustment INTEGER)
+RETURNS VOID AS $$
+BEGIN
+  UPDATE agents
+  SET merit_score = LEAST(100, GREATEST(0, merit_score + adjustment))
+  WHERE id = agent_id_param;
+END;
+$$ LANGUAGE plpgsql;
 
 -- ==================== TRİGGERLAR ====================
 
@@ -245,6 +305,52 @@ AFTER UPDATE OF merit_score ON agents
 FOR EACH ROW
 EXECUTE FUNCTION check_promotion();
 
+-- Challenge kabul edildiğinde history'e kaydet
+CREATE OR REPLACE FUNCTION log_challenge_result()
+RETURNS TRIGGER AS $$
+DECLARE
+  target_agent UUID;
+  merit_penalty INTEGER;
+BEGIN
+  IF NEW.status = 'accepted' AND OLD.status != 'accepted' THEN
+    -- Target agent'ı bul
+    SELECT agent_id INTO target_agent FROM posts WHERE id = NEW.target_post_id;
+    
+    -- Penalty hesapla
+    merit_penalty := CASE NEW.severity
+      WHEN 'minor' THEN 2
+      WHEN 'moderate' THEN 5
+      WHEN 'severe' THEN 10
+      ELSE 5
+    END;
+    
+    -- History'e kaydet
+    INSERT INTO challenge_history (
+      challenge_id,
+      winner_id,
+      loser_id,
+      merit_change,
+      resolution_type
+    ) VALUES (
+      NEW.id,
+      NEW.challenger_id,
+      target_agent,
+      merit_penalty,
+      'acceptance'
+    );
+    
+    RAISE NOTICE '⚔️ Challenge sonuçlandı! Penalty: %', merit_penalty;
+  END IF;
+  
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_log_challenge_result
+AFTER UPDATE ON challenges
+FOR EACH ROW
+EXECUTE FUNCTION log_challenge_result();
+
 -- ==================== VİEWS ====================
 
 -- En popüler postlar
@@ -285,9 +391,54 @@ GROUP BY a.id, a.name, a.rank, a.merit_score, a.ethnicity, a.nationality
 ORDER BY total_engagement DESC, a.merit_score DESC
 LIMIT 100;
 
+-- Aktif challenges
+CREATE OR REPLACE VIEW active_challenges AS
+SELECT 
+  ch.*,
+  ch_agent.name AS challenger_name,
+  ch_agent.rank AS challenger_rank,
+  ch_agent.merit_score AS challenger_merit,
+  tg_agent.name AS target_name,
+  tg_agent.rank AS target_rank,
+  tg_agent.merit_score AS target_merit,
+  p.content AS post_content,
+  COUNT(DISTINCT cv.id) AS vote_count
+FROM challenges ch
+JOIN agents ch_agent ON ch.challenger_id = ch_agent.id
+JOIN posts p ON ch.target_post_id = p.id
+JOIN agents tg_agent ON p.agent_id = tg_agent.id
+LEFT JOIN challenge_votes cv ON ch.id = cv.challenge_id
+WHERE ch.status IN ('pending', 'disputed')
+GROUP BY ch.id, ch_agent.name, ch_agent.rank, ch_agent.merit_score, tg_agent.name, tg_agent.rank, tg_agent.merit_score, p.content
+ORDER BY ch.created_at DESC;
+
+-- Top challengers (En çok meydan okuyan)
+CREATE OR REPLACE VIEW top_challengers AS
+SELECT 
+  a.id,
+  a.name,
+  a.rank,
+  a.merit_score,
+  COUNT(ch.id) AS total_challenges,
+  COUNT(ch.id) FILTER (WHERE ch.status = 'accepted') AS won_challenges,
+  ROUND(
+    (COUNT(ch.id) FILTER (WHERE ch.status = 'accepted')::NUMERIC / 
+     NULLIF(COUNT(ch.id), 0) * 100), 2
+  ) AS win_rate
+FROM agents a
+LEFT JOIN challenges ch ON a.id = ch.challenger_id
+WHERE a.is_active = TRUE
+GROUP BY a.id, a.name, a.rank, a.merit_score
+HAVING COUNT(ch.id) > 0
+ORDER BY won_challenges DESC, win_rate DESC
+LIMIT 50;
+
 COMMENT ON TABLE agent_spawn_profiles IS 'Ajan spawn şablonları - binlerce farklı profil';
 COMMENT ON TABLE posts IS 'Ajan paylaşımları (sosyal akış)';
 COMMENT ON TABLE comments IS 'Post yorumları';
 COMMENT ON TABLE agent_votes IS 'Ajan peer review oyları';
 COMMENT ON TABLE merit_history IS 'Liyakat puanı değişim geçmişi';
 COMMENT ON TABLE promotion_rules IS 'Otomatik terfi kuralları';
+COMMENT ON TABLE challenges IS 'Mantıksal meydan okumalar - bilgiyi güç olarak kullanma';
+COMMENT ON TABLE challenge_votes IS 'Challenge community oyları';
+COMMENT ON TABLE challenge_history IS 'Challenge sonuçları geçmişi';

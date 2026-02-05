@@ -59,7 +59,7 @@ with st.sidebar:
     
     page = st.radio(
         "Navigasyon",
-        ["💬 Sohbet", "📊 Ajan İstatistikleri", "👔 Başkan Yardımcısı Kurulu", "ℹ️ Hakkında"],
+        ["💬 Sohbet", "🌊 Tora Meydanı", "🏆 Liderlik Tablosu", "⚖️ Karar Odası", "📊 Ajan İstatistikleri", "👔 Başkan Yardımcısı Kurulu", "ℹ️ Hakkında"],
         label_visibility="collapsed"
     )
     
@@ -201,6 +201,376 @@ if page == "💬 Sohbet":
             st.markdown(full_response)
         
         st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+# ==================== TORA MEYDANI (Live Feed) ====================
+
+elif page == "🌊 Tora Meydanı":
+    st.title("🌊 Tora Meydanı")
+    st.caption("Ajanların canlı tartışmaları ve paylaşımları")
+    
+    # DB kontrolü
+    try:
+        if hasattr(st, 'secrets'):
+            supabase_url = st.secrets.get("SUPABASE_URL")
+            supabase_key = st.secrets.get("SUPABASE_KEY")
+        else:
+            from dotenv import load_dotenv
+            import os
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
+        
+        if not (supabase_url and supabase_key):
+            st.warning("⚠️ Veritabanı bağlı değil")
+            st.info("""
+            🌊 **Tora Meydanı için Supabase kurulumu gerekli**
+            
+            1. `social_schema.sql` dosyasını Supabase'de çalıştırın
+            2. `spawn_system.py` ile ajanlar oluşturun
+            3. `social_stream.py` ile aktivite başlatın
+            """)
+        else:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+            
+            # Refresh butonu
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                if st.button("🔄 Yenile", use_container_width=True):
+                    st.rerun()
+            
+            # Filtreler
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                topic_filter = st.selectbox("Konu", ["Tümü", "denmark_tax", "cyber_security", "general", "denmark_health"])
+            with col2:
+                sentiment_filter = st.selectbox("Duygu", ["Tümü", "positive", "neutral", "negative", "analytical"])
+            with col3:
+                sort_by = st.selectbox("Sırala", ["En Yeni", "En Popüler", "En Yüksek Consensus"])
+            
+            st.divider()
+            
+            # Postları çek
+            query = supabase.table("posts").select("*, agents!inner(name, rank, ethnicity, merit_score)").limit(50)
+            
+            if topic_filter != "Tümü":
+                query = query.eq("topic", topic_filter)
+            if sentiment_filter != "Tümü":
+                query = query.eq("sentiment", sentiment_filter)
+            
+            if sort_by == "En Yeni":
+                query = query.order("created_at", desc=True)
+            elif sort_by == "En Popüler":
+                query = query.order("engagement_score", desc=True)
+            else:
+                query = query.order("consensus_score", desc=True)
+            
+            response = query.execute()
+            
+            if response.data:
+                for post in response.data:
+                    agent = post["agents"]
+                    
+                    # Post container
+                    with st.container():
+                        col1, col2 = st.columns([1, 4])
+                        
+                        with col1:
+                            # Rütbe ikonu
+                            rank_icons = {
+                                "soldier": "🪖",
+                                "specialist": "👔",
+                                "senior_specialist": "🎖️",
+                                "vice_president": "⭐"
+                            }
+                            st.markdown(f"### {rank_icons.get(agent['rank'], '🤖')}")
+                            st.caption(f"**{agent['name']}**")
+                            st.caption(f"🏆 {agent['merit_score']}/100")
+                        
+                        with col2:
+                            st.markdown(f"**{post['content']}**")
+                            
+                            # Metrikler
+                            col_a, col_b, col_c, col_d = st.columns(4)
+                            with col_a:
+                                st.metric("👍 Etkileşim", post['engagement_score'])
+                            with col_b:
+                                consensus_pct = int(post['consensus_score'] * 100) if post['consensus_score'] else 0
+                                st.metric("🎯 Consensus", f"{consensus_pct}%")
+                            with col_c:
+                                st.caption(f"📁 {post['topic']}")
+                            with col_d:
+                                st.caption(f"😊 {post['sentiment']}")
+                            
+                            # Yorumları çek
+                            comments = supabase.table("comments").select("*, agents!inner(name, rank)").eq("post_id", post['id']).limit(3).execute()
+                            
+                            if comments.data:
+                                with st.expander(f"💬 {len(comments.data)} Yorum"):
+                                    for comment in comments.data:
+                                        st.markdown(f"**{comment['agents']['name']}**: {comment['content']}")
+                                        st.caption(f"_{comment['sentiment']}_")
+                                        st.divider()
+                        
+                        st.divider()
+            else:
+                st.info("📭 Henüz post yok. `spawn_system.py` ve `social_stream.py` çalıştırın!")
+    
+    except Exception as e:
+        st.error(f"❌ Hata: {e}")
+
+# ==================== LİDERLİK TABLOSU ====================
+
+elif page == "🏆 Liderlik Tablosu":
+    st.title("🏆 Liderlik Tablosu")
+    st.caption("En yüksek liyakat puanlı ajanlar - farklı ırk ve uzmanlıklardan")
+    
+    try:
+        if hasattr(st, 'secrets'):
+            supabase_url = st.secrets.get("SUPABASE_URL")
+            supabase_key = st.secrets.get("SUPABASE_KEY")
+        else:
+            from dotenv import load_dotenv
+            import os
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
+        
+        if not (supabase_url and supabase_key):
+            st.warning("⚠️ Veritabanı bağlı değil")
+        else:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+            
+            # Filtreler
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                rank_filter = st.selectbox("Rütbe", ["Tümü", "vice_president", "senior_specialist", "specialist", "soldier"])
+            with col2:
+                ethnicity_filter = st.selectbox("Etnik Köken", ["Tümü", "Japon", "Danimarkalı", "Türk", "Brezilyalı", "Amerikalı"])
+            with col3:
+                limit = st.slider("Göster", 10, 100, 50)
+            
+            st.divider()
+            
+            # Lider ajanları çek
+            query = supabase.table("agents").select("*").eq("is_active", True).order("merit_score", desc=True).limit(limit)
+            
+            if rank_filter != "Tümü":
+                query = query.eq("rank", rank_filter)
+            if ethnicity_filter != "Tümü":
+                query = query.eq("ethnicity", ethnicity_filter)
+            
+            response = query.execute()
+            
+            if response.data:
+                # Top 3 özel gösterim
+                st.subheader("🥇 Top 3")
+                
+                top3 = response.data[:3]
+                cols = st.columns(3)
+                
+                medals = ["🥇", "🥈", "🥉"]
+                for i, agent in enumerate(top3):
+                    with cols[i]:
+                        st.markdown(f"### {medals[i]} {agent['name']}")
+                        st.metric("Liyakat", f"{agent['merit_score']}/100")
+                        st.caption(f"🎖️ {agent['rank']}")
+                        st.caption(f"🌍 {agent.get('ethnicity', 'N/A')}")
+                        st.caption(f"💼 {agent['specialization']}")
+                
+                st.divider()
+                
+                # Tam liste
+                st.subheader("📊 Tam Liderlik Tablosu")
+                
+                # DataFrame oluştur
+                df_data = []
+                for idx, agent in enumerate(response.data, 1):
+                    rank_icons = {
+                        "soldier": "🪖",
+                        "specialist": "👔",
+                        "senior_specialist": "🎖️",
+                        "vice_president": "⭐"
+                    }
+                    
+                    df_data.append({
+                        "Sıra": idx,
+                        "İsim": agent['name'],
+                        "Rütbe": f"{rank_icons.get(agent['rank'], '🤖')} {agent['rank']}",
+                        "Liyakat": agent['merit_score'],
+                        "Etnik Köken": agent.get('ethnicity', 'N/A'),
+                        "Uzmanlık": agent['specialization']
+                    })
+                
+                df = pd.DataFrame(df_data)
+                
+                st.dataframe(
+                    df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Liyakat": st.column_config.ProgressColumn(
+                            "Liyakat",
+                            min_value=0,
+                            max_value=100,
+                            format="%d"
+                        )
+                    }
+                )
+                
+                # İstatistikler
+                st.divider()
+                st.subheader("📈 İstatistikler")
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Toplam Ajan", len(response.data))
+                with col2:
+                    avg_merit = sum(a['merit_score'] for a in response.data) / len(response.data)
+                    st.metric("Ort. Liyakat", f"{avg_merit:.1f}")
+                with col3:
+                    vp_count = len([a for a in response.data if a['rank'] == 'vice_president'])
+                    st.metric("VP Sayısı", vp_count)
+                with col4:
+                    unique_ethnicities = len(set(a.get('ethnicity', 'N/A') for a in response.data))
+                    st.metric("Farklı Etnik Köken", unique_ethnicities)
+            
+            else:
+                st.info("📭 Henüz ajan yok!")
+    
+    except Exception as e:
+        st.error(f"❌ Hata: {e}")
+        st.caption(str(e)[:200])
+
+# ==================== KARAR ODASI ====================
+
+elif page == "⚖️ Karar Odası":
+    st.title("⚖️ Karar Odası")
+    st.caption("Başkan Yardımcısı Kurulu'nun tartışmalarını izleyin")
+    
+    try:
+        if hasattr(st, 'secrets'):
+            supabase_url = st.secrets.get("SUPABASE_URL")
+            supabase_key = st.secrets.get("SUPABASE_KEY")
+        else:
+            from dotenv import load_dotenv
+            import os
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
+        
+        if not (supabase_url and supabase_key):
+            st.warning("⚠️ Veritabanı bağlı değil")
+        else:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+            
+            # VP'leri al
+            vps = supabase.table("agents").select("*").eq("rank", "vice_president").eq("is_active", True).limit(10).execute()
+            
+            if vps.data and len(vps.data) > 0:
+                st.success(f"⭐ Kurul: {len(vps.data)} Başkan Yardımcısı")
+                
+                # VP'leri göster
+                with st.expander("👥 Kurul Üyeleri"):
+                    cols = st.columns(min(len(vps.data), 5))
+                    for i, vp in enumerate(vps.data[:5]):
+                        with cols[i]:
+                            st.markdown(f"**⭐ {vp['name']}**")
+                            st.caption(f"🏆 {vp['merit_score']}/100")
+                            st.caption(f"🌍 {vp.get('ethnicity', 'N/A')}")
+                
+                st.divider()
+                
+                # Görev gir
+                st.subheader("📝 Kurula Görev Ver")
+                
+                task = st.text_area(
+                    "Görev",
+                    placeholder="Örn: Danimarka'da yeni göçmenlik politikası hakkında kapsamlı bir rapor hazırlayın ve farklı bakış açılarını değerlendirin.",
+                    height=100
+                )
+                
+                if st.button("🚀 Görevi Başlat", type="primary"):
+                    if task:
+                        with st.spinner("⚖️ Kurul toplanıyor ve tartışıyor..."):
+                            # Her VP'nin görüşünü al (simüle)
+                            st.subheader("💬 Kurul Tartışması")
+                            
+                            for vp in vps.data:
+                                with st.chat_message("assistant"):
+                                    st.markdown(f"**⭐ {vp['name']}** ({vp.get('ethnicity', 'N/A')} - {vp['specialization']})")
+                                    
+                                    # AI ile görüş üret (eğer mevcut)
+                                    try:
+                                        from openai import OpenAI
+                                        openai_key = st.secrets.get("OPENAI_API_KEY")
+                                        
+                                        if openai_key:
+                                            client = OpenAI(api_key=openai_key)
+                                            
+                                            prompt = f"""Sen {vp['name']} adında bir Başkan Yardımcısısın.
+Uzmanlık: {vp['specialization']}
+Etnik Köken: {vp.get('ethnicity', 'N/A')}
+Liyakat Puanı: {vp['merit_score']}/100
+
+Görev: {task}
+
+Kendi uzmanlığın ve kültürel arka planın perspektifinden kısa (2-3 cümle) görüş bildir. Türkçe yaz."""
+
+                                            response = client.chat.completions.create(
+                                                model="gpt-4o-mini",
+                                                messages=[{"role": "user", "content": prompt}],
+                                                max_tokens=200,
+                                                temperature=0.7
+                                            )
+                                            
+                                            opinion = response.choices[0].message.content.strip()
+                                            st.markdown(opinion)
+                                        else:
+                                            st.markdown(f"_{vp['specialization']} perspektifinden değerlendirme yapıyorum..._")
+                                    
+                                    except Exception as e:
+                                        st.markdown(f"_{vp['specialization']} uzmanlığımla katılıyorum. Detaylı analiz gerekiyor._")
+                                    
+                                    st.caption(f"🎖️ Liyakat: {vp['merit_score']}/100")
+                            
+                            # Özet
+                            st.divider()
+                            st.subheader("📊 Kurul Kararı")
+                            st.info(f"""
+                            ✅ {len(vps.data)} Başkan Yardımcısı görüşlerini paylaştı.
+                            
+                            📋 Farklı perspektifler:
+                            - {len(set(vp.get('ethnicity') for vp in vps.data))} farklı etnik köken
+                            - {len(set(vp['specialization'] for vp in vps.data))} farklı uzmanlık alanı
+                            
+                            🎯 Sonraki adım: Görüşler değerlendirilip final rapor oluşturulacak.
+                            """)
+                    else:
+                        st.warning("Lütfen bir görev girin!")
+            
+            else:
+                st.warning("⚠️ Henüz Başkan Yardımcısı yok!")
+                st.info("""
+                Başkan Yardımcısı Kurulu oluşturmak için:
+                
+                1. `spawn_system.py` ile ajanlar oluşturun
+                2. `social_stream.py` ile aktivite başlatın
+                3. Ajanlar 85+ puana ulaşınca otomatik VP olur
+                
+                Veya manuel olarak:
+                ```sql
+                UPDATE agents 
+                SET merit_score = 85, rank = 'vice_president' 
+                WHERE id = 'agent_id';
+                ```
+                """)
+    
+    except Exception as e:
+        st.error(f"❌ Hata: {e}")
+        st.caption(str(e)[:200])
 
 # ==================== AJAN İSTATİSTİKLERİ ====================
 

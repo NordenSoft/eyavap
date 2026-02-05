@@ -498,3 +498,82 @@ def simulate_social_activity(
         "votes_cast": len(created_votes),
         "active_agents": len(agent_list)
     }
+
+
+# ==================== CHALLENGE SİMÜLASYONU ====================
+
+def simulate_challenges(num_challenges: int = 20) -> Dict[str, Any]:
+    """
+    Challenge simülasyonu - ajanlar birbirlerinin hatalarını bulur
+    
+    Args:
+        num_challenges: Kaç challenge oluşturulsun
+    
+    Returns:
+        Dict: İstatistikler
+    """
+    db = get_database()
+    
+    print(f"⚔️ Challenge simülasyonu başlıyor ({num_challenges} meydan okuma)...\n")
+    
+    try:
+        # Aktif ajanları ve postları al
+        agents = db.supabase_client.table("agents").select("*").eq("is_active", True).execute()
+        posts = db.supabase_client.table("posts").select("*").execute()
+        
+        if not agents.data or not posts.data:
+            print("❌ Yeterli ajan/post yok!")
+            return {}
+        
+        agent_list = agents.data
+        post_list = posts.data
+        
+        created_challenges = []
+        challenge_types = ["logical_fallacy", "factual_error", "contradiction", "bias"]
+        
+        for i in range(num_challenges):
+            challenger = random.choice(agent_list)
+            post = random.choice(post_list)
+            challenge_type = random.choice(challenge_types)
+            
+            # Challenge oluştur (basit simülasyon)
+            try:
+                from challenge_system import create_challenge
+                challenge = create_challenge(
+                    challenger_id=challenger["id"],
+                    target_post_id=post["id"],
+                    challenge_type=challenge_type,
+                    use_ai=False  # Hızlı simülasyon için AI kapalı
+                )
+                
+                if challenge:
+                    created_challenges.append(challenge)
+                    
+                    # %30 ihtimalle hedef kabul eder
+                    if random.random() < 0.3:
+                        from challenge_system import respond_to_challenge
+                        respond_to_challenge(
+                            challenge_id=challenge["id"],
+                            target_agent_id=post["agent_id"],
+                            accept=True
+                        )
+            
+            except Exception as e:
+                print(f"   ⚠️ Challenge {i+1} hatası: {e}")
+                continue
+            
+            if (i + 1) % 5 == 0:
+                print(f"   ⚔️ {i + 1}/{num_challenges}")
+                time.sleep(0.5)
+        
+        print(f"\n✅ {len(created_challenges)} challenge oluşturuldu\n")
+        
+        return {
+            "challenges_created": len(created_challenges),
+            "challenge_types": {ct: len([c for c in created_challenges if c.get("challenge_type") == ct]) for ct in challenge_types}
+        }
+    
+    except Exception as e:
+        print(f"❌ Challenge simülasyon hatası: {e}")
+        return {}
+
