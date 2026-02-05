@@ -35,37 +35,36 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOG SİSTEMİ BAŞLANGICI ---
+# --- LOG SİSTEMİ ---
 if "logs" not in st.session_state:
     st.session_state.logs = []
 
 def add_log(action, detail):
     timestamp = datetime.datetime.now().strftime("%H:%M:%S")
     log_entry = f"[{timestamp}] {action}: {detail}"
-    # En yeni log en üstte olsun
     st.session_state.logs.insert(0, log_entry)
-# --- LOG SİSTEMİ BİTİŞİ ---
+# -------------------
 
-# 3. SIDEBAR (İSTİHBARAT MERKEZİ EKLENDİ)
+# 3. SIDEBAR (İSTİHBARAT MERKEZİ)
 with st.sidebar:
     st.title("🇩🇰 DK-OS")
     st.markdown("<span class='beta-tag'>PUBLIC BETA v5.1</span>", unsafe_allow_html=True)
     
     st.markdown("---")
     
-    # --- GİZLİ AJAN PANELİ BURASI ---
+    # --- GİZLİ AJAN PANELİ ---
     with st.expander("🕵️‍♂️ LIVE INTEL (Logs)", expanded=True):
         if not st.session_state.logs:
             st.caption("No activity yet...")
         else:
             for log in st.session_state.logs:
                 st.text(log)
-    # -------------------------------
+    # -------------------------
 
     st.markdown("---")
     if st.button("🗑️ Reset System", type="primary"):
         st.session_state.messages = []
-        st.session_state.logs = [] # Logları da temizle
+        st.session_state.logs = []
         st.rerun()
 
 # 4. HEADER
@@ -82,9 +81,8 @@ for message in st.session_state.messages:
         st.markdown(message["content"], unsafe_allow_html=True)
 
 if prompt := st.chat_input("Type here... (Dansk, English, Türkçe)"):
-    # Loglama 1: Soru Geldi
-    add_log("QUERY", prompt[:30] + "...") # Çok uzunsa kısalt
-
+    add_log("QUERY", prompt[:30] + "...") # Log 1
+    
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -92,8 +90,7 @@ if prompt := st.chat_input("Type here... (Dansk, English, Türkçe)"):
     with st.spinner("Processing..."):
         response_data = ask_the_government(prompt)
         
-        # Loglama 2: Bakanlık Atandı
-        add_log("AGENT", response_data['ministry_name'])
+        add_log("AGENT", response_data['ministry_name']) # Log 2
         
         header_html = f"""
         <div class="ministry-header">
