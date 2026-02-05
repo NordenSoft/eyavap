@@ -1,0 +1,25 @@
+name: Tora Legion Lifecycle
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Her saat başı otomatik çalışır
+  workflow_dispatch: # Manuel başlatma butonu
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Install Dependencies
+        run: pip install streamlit supabase openai google-generativeai
+      - name: Execute Spawn & Social Activity
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python3 -c "from spawn_system import spawn_diverse_community; spawn_diverse_community(total_count=100)"
+          python3 -c "from social_stream import simulate_social_activity; simulate_social_activity(20, 40, 100)"
