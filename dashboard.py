@@ -1,23 +1,19 @@
 import streamlit as st
 from agents import ask_the_government
 
-# 1. SAYFA AYARLARI
+# 1. PAGE SETUP
 st.set_page_config(
-    page_title="DK-OS: Danimarka Asistanı",
+    page_title="DK-OS: Universal Denmark Guide",
     page_icon="🇩🇰",
     layout="centered"
 )
 
-# 2. CSS STİL
+# 2. STYLE
 st.markdown("""
 <style>
     .stChatMessage {
         border-radius: 15px;
         padding: 10px;
-    }
-    .big-font {
-        font-size:30px !important;
-        font-weight: bold;
     }
     .ministry-header {
         background-color: #f0f2f6;
@@ -30,29 +26,35 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. YAN MENÜ (SIDEBAR)
+# 3. SIDEBAR (Universal)
 with st.sidebar:
     st.title("🇩🇰 DK-OS Panel")
     st.markdown("---")
     
-    st.info("Bu asistan, Danimarka'da yaşayan Türkler için devlet işlemlerini kolaylaştırmak amacıyla geliştirilmiştir.")
+    st.info("""
+    **Universal AI Assistant for Denmark**
     
-    st.markdown("### ⚙️ Ayarlar")
+    🇩🇰 Dansk
+    🇬🇧 English
+    🇹🇷 Türkçe
+    ...and more!
+    """)
     
-    # GEÇMİŞİ TEMİZLE BUTONU
-    if st.button("🗑️ Sohbeti Temizle", type="primary"):
+    st.markdown("### ⚙️ Settings / Indstillinger")
+    
+    if st.button("🗑️ Clear Chat / Ryd Chat", type="primary"):
         st.session_state.messages = []
         st.rerun()
         
     st.markdown("---")
-    st.caption("v3.0 PRO | Powered by Gemini 2.0 Flash")
+    st.caption("v4.0 GLOBAL | Uncensored AI")
 
-# 4. BAŞLIK
+# 4. MAIN TITLE
 st.title("🇩🇰 DK-OS")
-st.subheader("Danimarka Dijital Devletine Hoşgeldiniz")
-st.markdown("💡 *İpucu: 'Çocuğum hasta', 'Ev arıyorum', 'Vergi borcum var mı?' gibi sorular sorabilirsiniz.*")
+st.subheader("Open Source Government AI")
+st.markdown("💬 *Ask anything in your own language / Spørg om alt på dit eget sprog*")
 
-# 5. SOHBET GEÇMİŞİ
+# 5. CHAT HISTORY
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -60,21 +62,20 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"], unsafe_allow_html=True)
 
-# 6. GİRİŞ VE CEVAP MEKANİZMASI
-if prompt := st.chat_input("Devlet yetkililerine bir soru sor..."):
+# 6. INPUT & RESPONSE
+if prompt := st.chat_input("Type your question here..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    with st.spinner("🏛️ İlgili bakanlık aranıyor..."):
+    with st.spinner("🤖 Processing..."):
         response_data = ask_the_government(prompt)
         
-        # LOGO VE BAŞLIK TASARIMI
+        # HEADER DESIGN
         header_html = f"""
         <div class="ministry-header">
             <div style="font-size: 50px;">{response_data['ministry_icon']}</div>
             <div style="{response_data['ministry_style']} font-weight:bold;">{response_data['ministry_name']}</div>
-            <div style="color: gray; font-size: 14px; margin-top:5px;">Resmi Yanıt</div>
         </div>
         """
         

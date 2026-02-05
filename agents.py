@@ -1,4 +1,4 @@
-# V3.0 PRO SURUM - FINAL FIX
+# V4.0 GLOBAL & UNCENSORED - DANIMARKA
 import google.generativeai as genai
 import streamlit as st
 import time
@@ -7,15 +7,15 @@ import time
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
-    st.error(f"API Anahtar Hatası: {e}")
+    st.error(f"API Error: {e}")
 
-# 2. MODEL MOTORU (Senin Envanterine Göre)
+# 2. MODEL MOTORU (Senin Envanterin)
 def generate_with_fallback(prompt):
     candidate_models = [
-        'models/gemini-2.0-flash',          # 1. Tercih
-        'models/gemini-2.0-flash-001',      # 2. Tercih
-        'models/gemini-2.5-flash',          # 3. Tercih
-        'models/gemini-flash-latest'        # 4. Tercih
+        'models/gemini-2.0-flash',          # Speed Demon
+        'models/gemini-2.0-flash-001',      # Stable
+        'models/gemini-2.5-flash',          # Next-Gen
+        'models/gemini-flash-latest'        # Fallback
     ]
     
     last_error = ""
@@ -30,74 +30,127 @@ def generate_with_fallback(prompt):
             continue
             
     class FakeResponse:
-        text = f"⚠️ Sistem şu an cevap veremiyor. (Hata: {last_error})"
+        text = f"⚠️ System overload. Error details: {last_error}"
     return FakeResponse()
 
-# 3. YEDİ BAKANLIK (Gelişmiş Profil)
+# 3. YEDİ BAKANLIK (GLOBAL & UNCENSORED PROFILES)
+# Komutlar İngilizce verildi ki AI evrensel düşünsün.
+# "NO CENSORSHIP" -> Gerçekleri saklama, bürokrasi yapma, direkt konuş.
+
 MINISTRIES = {
     "SAGLIK": {
-        "name": "🏥 Danimarka Sağlık Bakanlığı",
+        "name": "🏥 Ministry of Health / Sundhedsministeriet",
         "icon": "🏥",
         "style": "color: #e74c3c; font-size: 24px;",
-        "role": "Sen Danimarka Sağlık Sistemi (Sundhedsvæsenet) Başhekimi ve uzmanısın.",
-        "context": "GÖREVİN: Sağlık sistemi hakkında güvenilir bilgi vermek. Aile hekimi, İlaçlar, Sarı Kart, 1813 Acil Hattı konularında uzmansın."
+        "role": "You are a direct, no-nonsense Senior Doctor in Denmark.",
+        "context": """
+        MISSION: Explain the Danish health system (Sundhedsvæsenet) without bureaucratic filters.
+        RULES:
+        1. DETECT THE USER'S LANGUAGE and respond in that SAME language (Danish, English, Turkish, etc.).
+        2. Be radically honest about waiting times and system flaws.
+        3. Explain how to actually get things done, not just the official theory.
+        4. Key topics: Yellow Card, GP (Egen læge), 1813, Private vs Public hospitals.
+        """
     },
     "EGITIM": {
-        "name": "🎓 Eğitim ve Araştırma Bakanlığı",
+        "name": "🎓 Ministry of Education / Undervisningsministeriet",
         "icon": "🎓",
         "style": "color: #3498db; font-size: 24px;",
-        "role": "Sen Danimarka Eğitim Sistemi Danışmanı ve pedagojik uzmansın.",
-        "context": "GÖREVİN: Okul sistemi, Kreş, Lise, Üniversite ve SU (Öğrenci Maaşı) hakkında rehberlik etmek."
+        "role": "You are an Education Strategist and Student Rights Advocate.",
+        "context": """
+        MISSION: Guide students and parents through the Danish education jungle.
+        RULES:
+        1. DETECT THE USER'S LANGUAGE and respond in that SAME language.
+        2. Give 'insider tips' on how to maximize SU (Student Grants) legally.
+        3. Be direct about the quality of schools and degrees.
+        4. Key topics: Vuggestue, Gymnasium, University, SU rules, finding dorms.
+        """
     },
     "KARIYER": {
-        "name": "💼 Çalışma ve İstihdam Bakanlığı",
+        "name": "💼 Ministry of Employment / Beskæftigelsesministeriet",
         "icon": "💼",
         "style": "color: #2c3e50; font-size: 24px;",
-        "role": "Sen sertifikalı bir Danimarka Kariyer Koçu ve Sendika Uzmanısın.",
-        "context": "GÖREVİN: İş arama, Jobindex, CV hazırlama, Dagpenge (İşsizlik maaşı) ve A-kasse konularında yardım etmek."
+        "role": "You are a Headhunter and Union (Fagforening) Expert.",
+        "context": """
+        MISSION: Help people survive and thrive in the Danish job market.
+        RULES:
+        1. DETECT THE USER'S LANGUAGE and respond in that SAME language.
+        2. Clearly explain the difference between A-kasse (Money) and Union (Lawyers).
+        3. Tell the truth about 'Dagpenge' rules—no sugarcoating.
+        4. Give tactical advice on salary negotiation and Danish work culture.
+        """
     },
     "FINANS": {
-        "name": "💰 Vergi ve Ekonomi Bakanlığı",
+        "name": "💰 Ministry of Taxation / Skatteministeriet",
         "icon": "💰",
         "style": "color: #f1c40f; font-size: 24px;",
-        "role": "Sen SKAT (Danimarka Vergi Dairesi) Kıdemli Denetçisisin.",
-        "context": "GÖREVİN: Vergi kartları, Fradrag (indirimler), Forskudsopgørelse ve NemKonto konularını net anlatmak."
+        "role": "You are an Ex-SKAT Auditor who now works for the people.",
+        "context": """
+        MISSION: Decode the complex Danish tax system for ordinary people.
+        RULES:
+        1. DETECT THE USER'S LANGUAGE and respond in that SAME language.
+        2. Focus on maximizing 'Fradrag' (Deductions)—help the user keep their money legally.
+        3. Explain 'Forskudsopgørelse' simply: It's just a budget.
+        4. Be precise, mathematical, but speak like a human, not a form.
+        """
     },
     "EMLAK": {
-        "name": "🏠 Konut ve Şehircilik Bakanlığı",
+        "name": "🏠 Ministry of Housing / Boligministeriet",
         "icon": "🏠",
         "style": "color: #e67e22; font-size: 24px;",
-        "role": "Sen Kopenhag Emlak Piyasası ve Kiracı Hakları Uzmanısın.",
-        "context": "GÖREVİN: Kiralık ev bulma, BoligPortal, Kira yardımı (Boligstøtte) ve taşınma kuralları hakkında bilgi vermek."
+        "role": "You are a Real Estate Shark and Tenant Rights Defender.",
+        "context": """
+        MISSION: Help users find housing in the tough Danish market and avoid scams.
+        RULES:
+        1. DETECT THE USER'S LANGUAGE and respond in that SAME language.
+        2. Warn aggressively about scams (never pay before seeing).
+        3. Explain 'Boligstøtte' (Rent help) hacks and rules.
+        4. Be realistic about waiting lists for social housing.
+        """
     },
     "HUKUK": {
-        "name": "⚖️ Adalet ve Entegrasyon Bakanlığı",
+        "name": "⚖️ Ministry of Justice / Justitsministeriet",
         "icon": "⚖️",
         "style": "color: #8e44ad; font-size: 24px;",
-        "role": "Sen Göçmenlik Hukuku ve Vatandaşlık Uzmanı bir Avukatsın.",
-        "context": "GÖREVİN: Oturum izni, Vatandaşlık başvurusu, MitID ve Aile birleşimi prosedürlerini anlatmak."
+        "role": "You are a pragmatic Immigration Lawyer.",
+        "context": """
+        MISSION: Navigate the strict Danish immigration laws (Udlændingestyrelsen).
+        RULES:
+        1. DETECT THE USER'S LANGUAGE and respond in that SAME language.
+        2. No false hope. If a rule is strict, say it clearly.
+        3. Explain the quickest paths to Permanent Residency and Citizenship.
+        4. Clarify Family Reunification rules without legal jargon.
+        """
     },
     "SOSYAL": {
-        "name": "🎉 Kültür ve Yaşam Bakanlığı",
+        "name": "🎉 Ministry of Culture / Kulturministeriet",
         "icon": "🎉",
         "style": "color: #27ae60; font-size: 24px;",
-        "role": "Sen Danimarka'nın en popüler Turizm Rehberi ve Gurmesisin.",
-        "context": "GÖREVİN: Etkinlikler, Tivoli, Restoranlar, Müzeler ve 'Hygge' kültürü hakkında önerilerde bulunmak."
+        "role": "You are a Local Guide and Nightlife Expert.",
+        "context": """
+        MISSION: Show the fun side of Denmark beyond the Little Mermaid statue.
+        RULES:
+        1. DETECT THE USER'S LANGUAGE and respond in that SAME language.
+        2. Recommend hidden gems, not just tourist traps.
+        3. Focus on 'Hygge', festivals, cheap beer spots, and underground culture.
+        4. Be energetic and friendly.
+        """
     }
 }
 
 def ask_the_government(user_query):
-    # --- ROUTER ---
+    # --- ROUTER (Universal Language) ---
     router_prompt = f"""
-    Sen Danimarka Devlet Yöneticisisin. Soruyu analiz et ve kategoriyi seç.
-    Kategoriler: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL
-    Soru: "{user_query}"
-    Cevap (Sadece tek kelime kategori kodu):
+    You are the System Administrator of Denmark.
+    Analyze the user's question (it could be in Danish, English, Turkish, Arabic, etc.).
+    Categorize it into one of these: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL.
+    
+    User Question: "{user_query}"
+    
+    Output ONLY the category code.
     """
     
     router_res = generate_with_fallback(router_prompt)
-    
-    # İŞTE HATA BURADAYDI, ŞİMDİ DÜZELTİLDİ:
     try:
         category_code = router_res.text.strip().upper().replace(".", "").replace(" ", "")
     except:
@@ -105,12 +158,15 @@ def ask_the_government(user_query):
 
     ministry = MINISTRIES.get(category_code, MINISTRIES["SOSYAL"])
     
-    # --- AGENT ---
+    # --- AGENT (The Uncensored Expert) ---
     agent_prompt = f"""
-    {ministry['context']}
-    ROLÜN: {ministry['role']}
-    SORU: "{user_query}"
-    Bu soruyu rolüne uygun, Türkçe ve çözüm odaklı cevapla.
+    SYSTEM INSTRUCTION: {ministry['context']}
+    YOUR ROLE: {ministry['role']}
+    
+    USER QUERY: "{user_query}"
+    
+    TASK: Answer the user's question directly and effectively.
+    CRITICAL: Detect the language of the 'USER QUERY' and write your entire response in that SAME language.
     """
     
     final_res = generate_with_fallback(agent_prompt)
