@@ -1,43 +1,58 @@
-import streamlit as st
-from openai import OpenAI
+"""
+EYAVAP: Ana Ajan Sistemi
+Başkan Ajan'ı kullanarak sorguları işle
+"""
 
-def ask_the_government(user_query: str):
-    openai_key = st.secrets.get("OPENAI_API_KEY") or st.secrets.get("openai", {}).get("api_key")
+from typing import Dict, Any
+from president_agent import get_president_agent
 
-    answer = ""
-    model_used = ""
 
-    # --- 1) OPENAI ---
-    if openai_key:
-        try:
-            client = OpenAI(api_key=openai_key)
-            resp = client.chat.completions.create(
-                model="gpt-4o",  # istersen gpt-4o-mini yap, daha ekonomik
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "Sen Danimarka devlet sistemleri (skat, sağlık, hukuk) konusunda uzman, "
-                            "profesyonel bir asistansın. Türkçe cevap ver. Kısa, öz ve çözüm odaklı ol."
-                        )
-                    },
-                    {"role": "user", "content": user_query}
-                ],
-                temperature=0.3,
-            )
-            answer = (resp.choices[0].message.content or "").strip()
-            model_used = "OpenAI GPT-4o"
-        except Exception as e:
-            # Streamlit log
-            st.warning(f"OpenAI hattı düştü: {e}")
-
-    # --- OpenAI yoksa / patladıysa ---
-    if not answer:
-        answer = "⚠️ Şu an yanıt üretilemiyor. (OpenAI anahtarı/bağlantı sorunu olabilir)."
-
-    return {
-        "answer": answer,
-        "ministry_name": f"Tora {model_used or 'Offline'} Hattı",
-        "ministry_icon": "🏛️",
-        "ministry_style": "color: white;"
-    }
+def ask_the_government(user_query: str) -> Dict[str, Any]:
+    """
+    Kullanıcı sorusunu Başkan Ajan'a yönlendir
+    
+    Args:
+        user_query: Kullanıcının sorusu
+    
+    Returns:
+        Dict: {
+            "answer": str,
+            "ministry_name": str,  # Uyumluluk için (dashboard.py'de kullanılıyor)
+            "ministry_icon": str,
+            "ministry_style": str,
+            "agent_used": str,
+            "agent_created": bool,
+            "execution_time_ms": int
+        }
+    """
+    try:
+        # Başkan Ajan'ı al
+        president = get_president_agent()
+        
+        # Sorguyu işle
+        result = president.process_query(user_query)
+        
+        # Dashboard uyumluluğu için format dönüşümü
+        return {
+            "answer": result["answer"],
+            "ministry_name": result.get("agent_used", "Başkan Ajan"),
+            "ministry_icon": "🤖" if result.get("agent_created") else "👔",
+            "ministry_style": "color: white;",
+            "agent_used": result.get("agent_used", "Unknown"),
+            "agent_specialization": result.get("agent_specialization", "general"),
+            "agent_created": result.get("agent_created", False),
+            "execution_time_ms": result.get("execution_time_ms", 0),
+            "success": result.get("success", True)
+        }
+        
+    except Exception as e:
+        return {
+            "answer": f"⚠️ Sistem hatası: {str(e)}",
+            "ministry_name": "Hata Yönetimi",
+            "ministry_icon": "⚠️",
+            "ministry_style": "color: red;",
+            "agent_used": "Error Handler",
+            "agent_created": False,
+            "execution_time_ms": 0,
+            "success": False
+        }

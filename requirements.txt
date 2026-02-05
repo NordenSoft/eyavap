@@ -1,7 +1,8 @@
 streamlit
-google-generativeai
+openai
+supabase
+python-dotenv
+requests
+pandas
 gspread
 oauth2client
-requests
-python-dotenv
-openai
