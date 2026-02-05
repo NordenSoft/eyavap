@@ -1,52 +1,86 @@
 import streamlit as st
 from agents import ask_the_government
 
-# Sayfa Ayarları
+# 1. SAYFA AYARLARI
 st.set_page_config(
-    page_title="DK-OS: Danimarka Yönetim Sistemi", 
-    page_icon="🇩🇰", 
+    page_title="DK-OS: Danimarka Asistanı",
+    page_icon="🇩🇰",
     layout="centered"
 )
 
-# Başlık Kısmı
-st.title("🇩🇰 DK-OS")
-st.markdown("### *Danimarka Dijital Devletine Hoşgeldiniz*")
-st.info("💡 **İpucu:** 'Çocuğum hasta', 'Ev arıyorum', 'Vergi borcum var mı?' gibi sorular sorabilirsiniz.")
+# 2. CSS STİL
+st.markdown("""
+<style>
+    .stChatMessage {
+        border-radius: 15px;
+        padding: 10px;
+    }
+    .big-font {
+        font-size:30px !important;
+        font-weight: bold;
+    }
+    .ministry-header {
+        background-color: #f0f2f6;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        text-align: center;
+        border: 1px solid #ddd;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# Sohbet Geçmişini Sakla (Session State)
-if "chat_history" not in st.session_state:
-    st.session_state.chat_history = []
-
-# Eski Mesajları Ekrana Yazdır
-for message in st.session_state.chat_history:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-# KULLANICI SORU SORDUĞUNDA...
-if user_input := st.chat_input("Devlet yetkililerine bir soru sor..."):
+# 3. YAN MENÜ (SIDEBAR)
+with st.sidebar:
+    st.title("🇩🇰 DK-OS Panel")
+    st.markdown("---")
     
-    # 1. Kullanıcının sorusunu ekrana bas ve kaydet
-    st.session_state.chat_history.append({"role": "user", "content": user_input})
-    with st.chat_message("user"):
-        st.markdown(user_input)
-
-    # 2. Devletin Cevabını Bekle
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        message_placeholder.markdown("🔄 *Bakanlıklarla görüşülüyor, lütfen bekleyin...*")
+    st.info("Bu asistan, Danimarka'da yaşayan Türkler için devlet işlemlerini kolaylaştırmak amacıyla geliştirilmiştir.")
+    
+    st.markdown("### ⚙️ Ayarlar")
+    
+    # GEÇMİŞİ TEMİZLE BUTONU
+    if st.button("🗑️ Sohbeti Temizle", type="primary"):
+        st.session_state.messages = []
+        st.rerun()
         
-        try:
-            # Backend'e (agents.py) git ve soruyu sor
-            result = ask_the_government(user_input)
-            
-            # Cevabı formatla
-            final_answer = f"**🏛️ {result['ministry_name']} Yanıtlıyor:**\n\n{result['answer']}"
-            
-            # Ekrana bas
-            message_placeholder.markdown(final_answer)
-            
-            # Cevabı kaydet
-            st.session_state.chat_history.append({"role": "assistant", "content": final_answer})
-            
-        except Exception as e:
-            message_placeholder.error(f"⚠️ Bir hata oluştu: {e}")
+    st.markdown("---")
+    st.caption("v3.0 PRO | Powered by Gemini 2.0 Flash")
+
+# 4. BAŞLIK
+st.title("🇩🇰 DK-OS")
+st.subheader("Danimarka Dijital Devletine Hoşgeldiniz")
+st.markdown("💡 *İpucu: 'Çocuğum hasta', 'Ev arıyorum', 'Vergi borcum var mı?' gibi sorular sorabilirsiniz.*")
+
+# 5. SOHBET GEÇMİŞİ
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"], unsafe_allow_html=True)
+
+# 6. GİRİŞ VE CEVAP MEKANİZMASI
+if prompt := st.chat_input("Devlet yetkililerine bir soru sor..."):
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
+
+    with st.spinner("🏛️ İlgili bakanlık aranıyor..."):
+        response_data = ask_the_government(prompt)
+        
+        # LOGO VE BAŞLIK TASARIMI
+        header_html = f"""
+        <div class="ministry-header">
+            <div style="font-size: 50px;">{response_data['ministry_icon']}</div>
+            <div style="{response_data['ministry_style']} font-weight:bold;">{response_data['ministry_name']}</div>
+            <div style="color: gray; font-size: 14px; margin-top:5px;">Resmi Yanıt</div>
+        </div>
+        """
+        
+        full_response = header_html + response_data["answer"]
+
+    with st.chat_message("assistant"):
+        st.markdown(full_response, unsafe_allow_html=True)
+    
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
