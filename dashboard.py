@@ -4,7 +4,7 @@ import datetime
 
 # 1. PAGE CONFIG
 st.set_page_config(
-    page_title="DK-OS Beta",
+    page_title="DK-OS Privacy",
     page_icon="🇩🇰",
     layout="centered"
 )
@@ -24,45 +24,44 @@ st.markdown("""
         text-align: center;
         border: 1px solid #e9ecef;
     }
-    .beta-tag {
-        color: #e67e22;
-        font-weight: bold;
+    .privacy-badge {
+        background-color: #d4edda;
+        color: #155724;
+        padding: 10px;
+        border-radius: 5px;
         font-size: 12px;
-        border: 1px solid #e67e22;
-        padding: 2px 6px;
-        border-radius: 4px;
+        text-align: center;
+        border: 1px solid #c3e6cb;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- LOG SİSTEMİ ---
-if "logs" not in st.session_state:
-    st.session_state.logs = []
-
-def add_log(action, detail):
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-    log_entry = f"[{timestamp}] {action}: {detail}"
-    st.session_state.logs.insert(0, log_entry)
-# -------------------
-
-# 3. SIDEBAR (Sadece Başlıklar)
+# 3. SIDEBAR (GİZLİLİK ODAKLI)
 with st.sidebar:
     st.title("🇩🇰 DK-OS")
-    st.markdown("<span class='beta-tag'>PUBLIC BETA v5.2</span>", unsafe_allow_html=True)
-    st.markdown("---")
-    # Log kutusu için yer ayırıyoruz ama içini en sonda dolduracağız
-    log_placeholder = st.empty() 
+    st.caption("v5.3 | Stable & Secure")
     
     st.markdown("---")
-    if st.button("🗑️ Reset System", type="primary"):
+    
+    # LOG YERİNE GÜVEN ROZETİ
+    st.markdown("""
+    <div class="privacy-badge">
+        🔒 <b>100% Anonymous</b><br>
+        No personal data is stored.<br>
+        Your chat is private.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    if st.button("🗑️ Clear History", type="primary"):
         st.session_state.messages = []
-        st.session_state.logs = []
         st.rerun()
 
 # 4. HEADER
 st.title("🇩🇰 DK-OS")
 st.markdown("### Digital State Assistant")
-st.markdown("*Ask questions or request document drafts.*")
+st.markdown("*Ask freely. No bureaucracy, no tracking.*")
 
 # 5. CHAT LOGIC
 if "messages" not in st.session_state:
@@ -72,9 +71,9 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"], unsafe_allow_html=True)
 
-if prompt := st.chat_input("Type here... (Dansk, English, Türkçe)"):
-    # Log 1: Soru Geldi
-    add_log("QUERY", prompt[:30] + "...") 
+if prompt := st.chat_input("Type here..."):
+    # GİZLİ LOGLAMA (Sadece sen siyah ekranda görürsün)
+    print(f"--- NEW USER QUERY: {prompt} ---")
     
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -83,8 +82,8 @@ if prompt := st.chat_input("Type here... (Dansk, English, Türkçe)"):
     with st.spinner("Processing..."):
         response_data = ask_the_government(prompt)
         
-        # Log 2: Bakanlık Atandı
-        add_log("AGENT", response_data['ministry_name']) 
+        # GİZLİ LOGLAMA 2
+        print(f"--- ASSIGNED TO: {response_data['ministry_name']} ---")
         
         header_html = f"""
         <div class="ministry-header">
@@ -98,13 +97,3 @@ if prompt := st.chat_input("Type here... (Dansk, English, Türkçe)"):
         st.markdown(full_response, unsafe_allow_html=True)
     
     st.session_state.messages.append({"role": "assistant", "content": full_response})
-
-# 6. SIDEBAR GÜNCELLEME (EN SON ÇALIŞIR)
-# Kod buraya geldiğinde soru sorulmuş ve loglar eklenmiş olur.
-with log_placeholder.container():
-    with st.expander("🕵️‍♂️ LIVE INTEL (Logs)", expanded=True):
-        if not st.session_state.logs:
-            st.caption("No activity yet...")
-        else:
-            for log in st.session_state.logs:
-                st.text(log)
