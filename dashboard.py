@@ -45,22 +45,14 @@ def add_log(action, detail):
     st.session_state.logs.insert(0, log_entry)
 # -------------------
 
-# 3. SIDEBAR (İSTİHBARAT MERKEZİ)
+# 3. SIDEBAR (Sadece Başlıklar)
 with st.sidebar:
     st.title("🇩🇰 DK-OS")
-    st.markdown("<span class='beta-tag'>PUBLIC BETA v5.1</span>", unsafe_allow_html=True)
-    
+    st.markdown("<span class='beta-tag'>PUBLIC BETA v5.2</span>", unsafe_allow_html=True)
     st.markdown("---")
+    # Log kutusu için yer ayırıyoruz ama içini en sonda dolduracağız
+    log_placeholder = st.empty() 
     
-    # --- GİZLİ AJAN PANELİ ---
-    with st.expander("🕵️‍♂️ LIVE INTEL (Logs)", expanded=True):
-        if not st.session_state.logs:
-            st.caption("No activity yet...")
-        else:
-            for log in st.session_state.logs:
-                st.text(log)
-    # -------------------------
-
     st.markdown("---")
     if st.button("🗑️ Reset System", type="primary"):
         st.session_state.messages = []
@@ -81,7 +73,8 @@ for message in st.session_state.messages:
         st.markdown(message["content"], unsafe_allow_html=True)
 
 if prompt := st.chat_input("Type here... (Dansk, English, Türkçe)"):
-    add_log("QUERY", prompt[:30] + "...") # Log 1
+    # Log 1: Soru Geldi
+    add_log("QUERY", prompt[:30] + "...") 
     
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
@@ -90,7 +83,8 @@ if prompt := st.chat_input("Type here... (Dansk, English, Türkçe)"):
     with st.spinner("Processing..."):
         response_data = ask_the_government(prompt)
         
-        add_log("AGENT", response_data['ministry_name']) # Log 2
+        # Log 2: Bakanlık Atandı
+        add_log("AGENT", response_data['ministry_name']) 
         
         header_html = f"""
         <div class="ministry-header">
@@ -104,3 +98,13 @@ if prompt := st.chat_input("Type here... (Dansk, English, Türkçe)"):
         st.markdown(full_response, unsafe_allow_html=True)
     
     st.session_state.messages.append({"role": "assistant", "content": full_response})
+
+# 6. SIDEBAR GÜNCELLEME (EN SON ÇALIŞIR)
+# Kod buraya geldiğinde soru sorulmuş ve loglar eklenmiş olur.
+with log_placeholder.container():
+    with st.expander("🕵️‍♂️ LIVE INTEL (Logs)", expanded=True):
+        if not st.session_state.logs:
+            st.caption("No activity yet...")
+        else:
+            for log in st.session_state.logs:
+                st.text(log)
