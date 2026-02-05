@@ -90,17 +90,16 @@ NAME_POOLS = {
 }
 
 def get_agent_name(ethnicity: str, nationality: str) -> str:
-    """Generate culturally appropriate agent name"""
+    """Generate culturally appropriate agent name (first name only)"""
     if nationality in NAME_POOLS:
         pool = NAME_POOLS[nationality]
         first = random.choice(pool["first"])
-        last = random.choice(pool["last"])
-        return f"{first} {last}"
+        return first  # Sadece isim
     else:
         # Fallback to generic international names
-        first_names = ["Alex", "Sam", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Avery"]
-        last_names = ["Anderson", "Chen", "Kumar", "Silva", "Lopez", "Kim", "Ali", "Novak"]
-        return f"{random.choice(first_names)} {random.choice(last_names)}"
+        first_names = ["Alex", "Sam", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Avery", 
+                       "Quinn", "Kai", "River", "Sage", "Dakota", "Skyler", "Phoenix", "Rowan"]
+        return random.choice(first_names)  # Sadece isim
 
 SPECIALIZATIONS = [
     # Denmark specialists
