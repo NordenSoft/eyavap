@@ -1,8 +1,8 @@
 streamlit
+openai
 supabase
 python-dotenv
 requests
 pandas
-google-generativeai
 gspread
 oauth2client

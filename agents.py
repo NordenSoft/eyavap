@@ -1,12 +1,11 @@
 """
 EYAVAP: Basit Ajan Sistemi
-Supabase + Gemini ile otomatik ajan oluşturma ve liyakat sistemi
+Supabase + OpenAI ile otomatik ajan oluşturma ve liyakat sistemi
 """
 
 import time
 import json
 import streamlit as st
-import google.generativeai as genai
 from typing import Dict, Any, Optional
 from datetime import datetime
 
@@ -31,38 +30,29 @@ def get_supabase_client():
         return None
 
 
-# ==================== GEMINI BAĞLANTISI ====================
+# ==================== OPENAI BAĞLANTISI ====================
 
-def get_gemini_model():
-    """Gemini model'ini al"""
+def get_openai_client():
+    """OpenAI client'ını al"""
     try:
-        gemini_key = st.secrets.get("GEMINI_API_KEY")
+        from openai import OpenAI
         
-        if not gemini_key:
-            print("⚠️ Gemini API key bulunamadı")
+        openai_key = st.secrets.get("OPENAI_API_KEY") or st.secrets.get("openai", {}).get("api_key")
+        
+        if not openai_key:
+            print("⚠️ OpenAI API key bulunamadı")
             return None
         
-        genai.configure(api_key=gemini_key)
-        
-        # Kullanılabilir modeli seç
-        for model_name in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]:
-            try:
-                model = genai.GenerativeModel(model_name)
-                # Test et
-                model.generate_content("test")
-                return model
-            except:
-                continue
-        
-        return None
+        client = OpenAI(api_key=openai_key)
+        return client
     except Exception as e:
-        print(f"⚠️ Gemini bağlantı hatası: {e}")
+        print(f"⚠️ OpenAI bağlantı hatası: {e}")
         return None
 
 
 # ==================== KONU ANALİZİ ====================
 
-def analyze_topic(user_query: str, model) -> Dict[str, Any]:
+def analyze_topic(user_query: str, client) -> Dict[str, Any]:
     """
     Kullanıcı sorusunu analiz et ve hangi uzmanlık alanına ait olduğunu belirle
     """
@@ -89,8 +79,18 @@ SADECE JSON formatında yanıt ver:
   "keywords": ["vergi", "skat"]
 }}"""
 
-        response = model.generate_content(prompt)
-        result = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Sen bir sorgu sınıflandırma uzmanısın. Sadece JSON formatında yanıt ver."},
+                {"role": "user", "content": prompt}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0.1,
+            max_tokens=200
+        )
+        
+        result = json.loads(response.choices[0].message.content)
         
         return {
             "specialization": result.get("specialization", "general"),
@@ -308,9 +308,9 @@ def ask_the_government(user_query: str) -> Dict[str, Any]:
     """
     Ana ajan sistemi
     
-    1. Konuyu analiz et (Gemini)
+    1. Konuyu analiz et (OpenAI)
     2. Uygun ajan bul/oluştur (Supabase)
-    3. Yanıt üret (Gemini)
+    3. Yanıt üret (OpenAI)
     4. Liyakat puanını güncelle
     5. Sorguyu logla
     """
@@ -318,11 +318,11 @@ def ask_the_government(user_query: str) -> Dict[str, Any]:
     
     # Bağlantılar
     supabase = get_supabase_client()
-    model = get_gemini_model()
+    client = get_openai_client()
     
-    if not model:
+    if not client:
         return {
-            "answer": "⚠️ AI modeli kullanılamıyor. Gemini API anahtarını kontrol edin.",
+            "answer": "⚠️ AI modeli kullanılamıyor. OpenAI API anahtarını kontrol edin.",
             "ministry_name": "Hata Yönetimi",
             "ministry_icon": "⚠️",
             "ministry_style": "color: red;",
@@ -335,7 +335,7 @@ def ask_the_government(user_query: str) -> Dict[str, Any]:
     try:
         # 1. Konu analizi
         print(f"🔍 Konu analiz ediliyor...")
-        analysis = analyze_topic(user_query, model)
+        analysis = analyze_topic(user_query, client)
         specialization = analysis["specialization"]
         keywords = analysis["keywords"]
         
@@ -354,8 +354,17 @@ Rütbe: {agent.get('rank', 'soldier')} (Liyakat: {agent.get('merit_score', 50)}/
 Kullanıcının sorusuna Türkçe, detaylı ve profesyonel yanıt ver.
 Gerekirse eylem yetkilerini kullan (web araştırması, analiz, vb.)."""
 
-        response = model.generate_content(f"{system_prompt}\n\nSORU: {user_query}")
-        answer = response.text.strip()
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_query}
+            ],
+            temperature=0.3,
+            max_tokens=1500
+        )
+        
+        answer = response.choices[0].message.content.strip()
         
         # 4. Liyakat güncelle
         success = len(answer) > 50  # Basit başarı kriteri
