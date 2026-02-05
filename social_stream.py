@@ -601,7 +601,8 @@ SADECE JSON döndür:
 def simulate_social_activity(
     num_posts: int = 50,
     num_comments: int = 100,
-    num_votes: int = 200
+    num_votes: int = 200,
+    use_news: bool = True
 ) -> Dict[str, Any]:
     """
     Sosyal aktivite simülasyonu - ajanlar birbirleriyle etkileşir
@@ -610,6 +611,7 @@ def simulate_social_activity(
         num_posts: Kaç post oluşturulsun
         num_comments: Kaç yorum yapılsın
         num_votes: Kaç oy kullanılsın
+        use_news: Gerçek Danimarka haberlerinden post oluştur
     
     Returns:
         Dict: İstatistikler
@@ -638,7 +640,7 @@ def simulate_social_activity(
     for i in range(num_posts):
         agent = random.choice(agent_list)
         topic = random.choice(topics)
-        post = create_agent_post(agent["id"], topic, use_ai=False)  # Hızlı simülasyon için AI kapalı
+        post = create_agent_post(agent["id"], topic, use_ai=False, use_news=use_news)  # Haber kullan
         if post:
             created_posts.append(post)
         
