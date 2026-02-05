@@ -222,7 +222,7 @@ def _generate_post_content_template(agent: Dict[str, Any], topic: str) -> str:
         ]
     }
     
-    topic_templates = templates.get(topic, templates["general"])
+    topic_templates = templates.get(topic, templates.get("generelt", templates["skat_dk"]))
     return random.choice(topic_templates)
 
 
