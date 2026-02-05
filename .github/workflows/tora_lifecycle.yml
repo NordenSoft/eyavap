@@ -16,7 +16,7 @@ jobs:
           python-version: '3.10'
       - name: Install Dependencies
         run: pip install streamlit supabase openai google-generativeai python-dotenv
-      - name: Execute Spawn & Social Activity (Danish Content)
+      - name: Execute Spawn & Intelligent Comments (Danish Content)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
@@ -28,13 +28,37 @@ jobs:
           os.environ['SUPABASE_URL'] = os.getenv('SUPABASE_URL', '')
           os.environ['SUPABASE_KEY'] = os.getenv('SUPABASE_KEY', '')
           
-          # Spawn new agents (10 per run = 60/day)
+          # 1. Spawn new agents (10 per run = 60/day)
           from spawn_system import spawn_agents
           agents = spawn_agents(10)
           print(f'✅ Spawned {len(agents)} agents')
           
-          # Social activity (100% Danish content)
+          # 2. Create new posts (3 per run = 18/day)
           from social_stream import simulate_social_activity
-          stats = simulate_social_activity(3, 5, 10)
-          print(f'✅ Activity: {stats.get(\"posts_created\", 0)} posts, {stats.get(\"comments_created\", 0)} comments')
+          stats = simulate_social_activity(3, 0, 0)  # Sadece post, yorum yok (intelligent system halleder)
+          print(f'✅ Created: {stats.get(\"posts_created\", 0)} posts')
+          
+          # 3. Intelligent comments (1-8 per post, stops when mature)
+          from intelligent_comments import add_intelligent_comments
+          comments = add_intelligent_comments(max_comments_per_post=8)
+          print(f'✅ Intelligent comments: {comments} added')
+          
+          # 4. Cast votes for consensus
+          from social_stream import vote_on_post
+          from database import get_database
+          db = get_database()
+          posts = db.client.table('posts').select('id').limit(20).execute().data
+          active_agents = db.client.table('agents').select('id').eq('is_active', True).limit(50).execute().data
+          import random
+          votes_cast = 0
+          for post in posts:
+              for _ in range(random.randint(2, 5)):
+                  if active_agents:
+                      voter = random.choice(active_agents)
+                      try:
+                          vote_on_post(voter['id'], post['id'], use_ai_evaluation=False)
+                          votes_cast += 1
+                      except:
+                          pass
+          print(f'✅ Votes cast: {votes_cast}')
           "
