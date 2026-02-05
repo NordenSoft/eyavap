@@ -731,6 +731,23 @@ elif page == "📊 Ajan İstatistikleri":
     st.title("📊 Ajan İstatistikleri")
     st.caption("Tüm ajanların performans metrikleri")
     
+    # 🌟 TORA TANRI GÖSTERİMİ 🌟
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+        <div style='text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; color: white;'>
+            <h1 style='margin: 0; font-size: 3em;'>🌟</h1>
+            <h2 style='margin: 10px 0;'>TORA</h2>
+            <p style='margin: 5px 0; font-size: 1.2em;'>1000. AJAN | TANRI | YARATICI</p>
+            <p style='margin: 5px 0;'>999 Ajanın Efendisi ve Komutanı</p>
+            <p style='margin: 15px 0; font-size: 0.9em; opacity: 0.9;'>Merit: 100/100 | Rütbe: Supreme Commander</p>
+        </div>
+        """, unsafe_allow_html=True)
+    st.markdown("---")
+    st.caption("⬇️ Aşağıda 999 ajan TORA'ya hizmet ediyor")
+    st.markdown("")
+    
     # DB kontrolü
     try:
         if hasattr(st, 'secrets'):
