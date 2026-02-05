@@ -1,16 +1,15 @@
-# V6.2 TORA - ARMORED CORE (ZIRHLI MOD)
 import google.generativeai as genai
 import streamlit as st
 import time
 
-# --- 1. GÜVENLİ BAĞLANTI (CRASH ÖNLEYİCİ) ---
+# --- 1. GÜVENLİ BAĞLANTI ---
 def configure_genai():
     api_key = None
     try:
-        # Önce tek başına duran anahtara bak
+        # Önce tek satırlık anahtara bak
         if "GEMINI_API_KEY" in st.secrets:
             api_key = st.secrets["GEMINI_API_KEY"]
-        # Yoksa [gemini] kutusunun içine bak (Eski yöntem)
+        # Yoksa [gemini] kutusuna bak
         elif "gemini" in st.secrets and "api_key" in st.secrets["gemini"]:
             api_key = st.secrets["gemini"]["api_key"]
             
@@ -26,17 +25,18 @@ def configure_genai():
 # Sistemi başlat
 is_connected = configure_genai()
 
-# 2. ROBUST GENERATION
+# --- 2. GÜNCEL MODEL LİSTESİ (DÜZELTİLDİ) ---
 def generate_with_fallback(prompt):
     if not is_connected:
         class ErrorResponse:
-            text = "⚠️ Sistem Hatası: API Anahtarı bulunamadı (Secrets ayarlarını kontrol et)."
+            text = "⚠️ API Anahtarı bulunamadı. Lütfen Secrets ayarlarını kontrol et."
         return ErrorResponse()
 
+    # İŞTE BURASI DEĞİŞTİ: Sadece çalışan 'Flash' modelleri
     candidate_models = [
-        'models/gemini-2.0-flash',
-        'models/gemini-1.5-flash',
-        'models/gemini-pro'
+        'gemini-1.5-flash',       # En hızlı ve kararlı olan
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-pro'          # Yedek güç
     ]
     
     last_error = ""
@@ -50,17 +50,12 @@ def generate_with_fallback(prompt):
             time.sleep(0.5)
             continue
             
+    # Eğer hepsi hata verirse:
     class FakeResponse:
-        text = f"⚠️ Tora system overload (Google Gemini Hatası). Detay: {last_error}"
+        text = f"⚠️ Tora sunucuya ulaşamadı. (Hata: {last_error})"
     return FakeResponse()
 
-# --- ACTION PROTOCOL ---
-ACTION_PROTOCOL = """
-*** CRITICAL INSTRUCTION ***
-If user asks for a formal letter/email: Write it inside a CODE BLOCK.
-"""
-
-# 3. MINISTRIES
+# --- 3. BAKANLIKLAR (STANDART) ---
 MINISTRIES = {
     "SAGLIK": {"name": "🏥 Ministry of Health", "icon": "🏥", "style": "color: #e74c3c;", "role": "Senior Doctor.", "context": "Topics: GP, Yellow Card, 1813."},
     "EGITIM": {"name": "🎓 Ministry of Education", "icon": "🎓", "style": "color: #3498db;", "role": "Student Advisor.", "context": "Topics: SU, ECTS, Dorms."},
@@ -83,7 +78,7 @@ def ask_the_government(user_query):
     ministry = MINISTRIES.get(category_code, MINISTRIES["SOSYAL"])
     
     # --- AGENT ---
-    agent_prompt = f"ROLE: {ministry['role']} context: {ministry['context']} Query: {user_query} Answer in same language."
+    agent_prompt = f"ROLE: {ministry['role']} context: {ministry['context']} Query: {user_query} Answer in Turkish. Be helpful and concise."
     final_res = generate_with_fallback(agent_prompt)
     
     return {
