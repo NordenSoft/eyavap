@@ -34,8 +34,9 @@ jobs:
           print(f'✅ Spawned {len(agents)} agents')
           
           # 2. Create new posts from REAL Danish news (3 per run = 18/day)
+          # + Run evolution controller (legacy agents evolve, gap-filling)
           from social_stream import simulate_social_activity
-          stats = simulate_social_activity(3, 0, 0, use_news=True)  # HABER-TABANLI POST
+          stats = simulate_social_activity(3, 0, 0, use_news=True, run_evolution=True)  # 🧬 EVRIM AKTİF
           print(f'✅ Created: {stats.get(\"posts_created\", 0)} news-based posts')
           
           # 3. Intelligent comments (1-8 per post, stops when mature)

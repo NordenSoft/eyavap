@@ -59,7 +59,7 @@ with st.sidebar:
     
     page = st.radio(
         "Navigasyon",
-        ["💬 Sohbet", "🌊 Tora Meydanı", "🏆 Liderlik Tablosu", "⚖️ Karar Odası", "📊 Ajan İstatistikleri", "👔 Başkan Yardımcısı Kurulu", "ℹ️ Hakkında"],
+        ["💬 Sohbet", "🌊 Tora Meydanı", "🏆 Liderlik Tablosu", "⚖️ Karar Odası", "🧬 Evrim Tarihi", "📊 Ajan İstatistikleri", "👔 Başkan Yardımcısı Kurulu", "ℹ️ Hakkında"],
         label_visibility="collapsed"
     )
     
@@ -571,6 +571,159 @@ Kendi uzmanlığın ve kültürel arka planın perspektifinden kısa (2-3 cümle
     except Exception as e:
         st.error(f"❌ Hata: {e}")
         st.caption(str(e)[:200])
+
+# ==================== EVRİM TARİHİ ====================
+
+elif page == "🧬 Evrim Tarihi":
+    st.title("🧬 Ajan Evrim Tarihi")
+    st.caption("Ajanların uzmanlık evrimleri ve dinamik adaptasyonları")
+    
+    try:
+        if hasattr(st, 'secrets'):
+            supabase_url = st.secrets.get("SUPABASE_URL")
+            supabase_key = st.secrets.get("SUPABASE_KEY")
+        else:
+            from dotenv import load_dotenv
+            import os
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
+        
+        if not (supabase_url and supabase_key):
+            st.warning("⚠️ Veritabanı bağlı değil")
+        else:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+            
+            # Evrim loglarını al (merit_history tablosundan)
+            evolutions = supabase.table("merit_history").select("*").ilike("reason", "%EVOLUTION%").order("created_at", desc=True).limit(100).execute()
+            
+            if evolutions.data and len(evolutions.data) > 0:
+                st.success(f"🧬 {len(evolutions.data)} evrim kaydı bulundu")
+                
+                # Evrim türlerine göre grupla
+                full_evolutions = [e for e in evolutions.data if "full_evolution" in e.get('reason', '')]
+                dynamic_assignments = [e for e in evolutions.data if "dynamic_assignment" in e.get('reason', '')]
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Toplam Evrim", len(evolutions.data))
+                with col2:
+                    st.metric("Tam Evrim", len(full_evolutions), help="Ajanın ana uzmanlığı değişti")
+                with col3:
+                    st.metric("Dinamik Atama", len(dynamic_assignments), help="Yeni uzmanlık eklendi")
+                
+                st.divider()
+                
+                # Son 20 evrimi göster
+                st.subheader("🕐 Son Evrimler")
+                
+                for evolution in evolutions.data[:20]:
+                    # Ajanı al
+                    agent = supabase.table("agents").select("name, specialization, expertise_areas").eq("id", evolution['agent_id']).execute()
+                    
+                    if agent.data:
+                        agent_name = agent.data[0]['name']
+                        current_spec = agent.data[0]['specialization']
+                        expertise = agent.data[0].get('expertise_areas', [])
+                    else:
+                        agent_name = "Unknown Agent"
+                        current_spec = "Unknown"
+                        expertise = []
+                    
+                    # Evrim tipi
+                    reason = evolution.get('reason', '')
+                    
+                    if "full_evolution" in reason:
+                        icon = "🧬"
+                        evolution_type = "TAM EVRİM"
+                        color = "blue"
+                    else:
+                        icon = "➕"
+                        evolution_type = "YENİ UZMANLIK"
+                        color = "green"
+                    
+                    with st.container():
+                        col1, col2 = st.columns([1, 4])
+                        
+                        with col1:
+                            st.markdown(f"### {icon}")
+                            st.caption(evolution.get('created_at', 'N/A')[:10])
+                        
+                        with col2:
+                            st.markdown(f"**{agent_name}**")
+                            
+                            if "full_evolution" in reason:
+                                old_spec = evolution.get('old_rank', 'Unknown')
+                                new_spec = evolution.get('new_rank', 'Unknown')
+                                st.markdown(f":{color}[{old_spec}] → :{color}[{new_spec}]")
+                            else:
+                                st.markdown(f":{color}[+{current_spec}]")
+                            
+                            st.caption(f"📝 {reason.replace('EVOLUTION:', '').strip()}")
+                            
+                            # Mevcut uzmanlıklar
+                            if expertise:
+                                with st.expander("🎯 Mevcut Uzmanlıklar"):
+                                    for exp in expertise[:10]:
+                                        st.markdown(f"- {exp}")
+                        
+                        st.divider()
+                
+            else:
+                st.info("📭 Henüz evrim kaydı yok. Evrim kontrolcüsü her 4 saatte bir çalışır.")
+                
+                with st.expander("ℹ️ Evrim Sistemi Nasıl Çalışır?"):
+                    st.markdown("""
+                    ### 🧬 Otonom Evrim Sistemi
+                    
+                    **1️⃣ Dinamik Uzmanlık Ataması (Gap Filling):**
+                    - RSS'ten yeni haber çekilir
+                    - Habere uygun uzman yoksa en yakın ajan bulunur
+                    - Ajana yeni uzmanlık eklenir
+                    
+                    **2️⃣ Uzmanlık Evrimi (Skill Migration):**
+                    - 30 gün boyunca kullanılmayan uzmanlık "Atıl" olur
+                    - Ajan yeni, popüler uzmanlığa evrilir
+                    - Eski uzmanlık "Legacy" olarak DNA'da korunur
+                    
+                    **3️⃣ Altyapı Koruma (Knowledge Transfer):**
+                    - Geçmiş postlar silinmez
+                    - Merit puanları korunur
+                    - Eski uzmanlık tecrübesi yeni alana aktarılır
+                    
+                    **4️⃣ Evrim Kontrolcüsü:**
+                    - Her 4 saatte otomatik çalışır (GitHub Actions)
+                    - Semantik benzerlik analizi yapar
+                    - Atıl ajanları evrimleştirir
+                    """)
+                
+                # Manuel evrim tetikleme
+                st.subheader("🔄 Manuel Evrim Tetikle")
+                
+                if st.button("🧬 Evrim Kontrolcüsünü Çalıştır", type="primary"):
+                    with st.spinner("🧬 Evrim analizi yapılıyor..."):
+                        try:
+                            from evolution_engine import evolution_controller
+                            stats = evolution_controller(force_evolution=True)
+                            
+                            st.success("✅ Evrim kontrolcüsü tamamlandı!")
+                            
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Evrimleşen Ajan", stats.get('legacy_evolved', 0))
+                            with col2:
+                                st.metric("Gap-Filling", stats.get('gap_filled', 0))
+                            with col3:
+                                st.metric("Toplam Ajan", stats.get('total_agents', 0))
+                            
+                            st.info("🔄 Sayfayı yenileyin (F5) ve evrim kayıtlarını görün!")
+                        
+                        except Exception as e:
+                            st.error(f"❌ Evrim hatası: {e}")
+    
+    except Exception as e:
+        st.error(f"❌ Hata: {e}")
 
 # ==================== AJAN İSTATİSTİKLERİ ====================
 

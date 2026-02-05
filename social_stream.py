@@ -602,7 +602,8 @@ def simulate_social_activity(
     num_posts: int = 50,
     num_comments: int = 100,
     num_votes: int = 200,
-    use_news: bool = True
+    use_news: bool = True,
+    run_evolution: bool = False
 ) -> Dict[str, Any]:
     """
     Sosyal aktivite simülasyonu - ajanlar birbirleriyle etkileşir
@@ -612,11 +613,23 @@ def simulate_social_activity(
         num_comments: Kaç yorum yapılsın
         num_votes: Kaç oy kullanılsın
         use_news: Gerçek Danimarka haberlerinden post oluştur
+        run_evolution: Evrim kontrolcüsünü çalıştır (her saat başı)
     
     Returns:
         Dict: İstatistikler
     """
     db = get_database()
+    
+    # 🧬 EVRİM KONTROLCÜSÜ (her saat başı)
+    if run_evolution:
+        try:
+            from evolution_engine import evolution_controller
+            print("\n🧬 Evrim kontrolcüsü çalışıyor...")
+            evolution_stats = evolution_controller(force_evolution=False)
+            print(f"   ✅ {evolution_stats['legacy_evolved']} ajan evrimleşti")
+            print(f"   ✅ {evolution_stats['gap_filled']} gap-filling yapıldı\n")
+        except Exception as e:
+            print(f"   ⚠️ Evrim kontrolcüsü hatası: {e}\n")
     
     print(f"🌊 Sosyal aktivite simülasyonu başlıyor...")
     print(f"   📝 {num_posts} post")
