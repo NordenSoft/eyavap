@@ -8,114 +8,97 @@ try:
 except Exception as e:
     print(f"API Hatası: {e}")
 
-# --- YARDIMCI FONKSİYON: GÜVENLİ ÜRETİM (Safe Generator) ---
+# --- YARDIMCI FONKSİYON: GÜVENLİ ÜRETİM VE TEŞHİS ---
 def generate_with_fallback(prompt):
-    """
-    Bu fonksiyon sırayla modelleri dener.
-    Flash hata verirse Pro devreye girer.
-    """
-    # Denenecek Modeller Listesi (Sıra Önemli: Hızlı -> Güçlü -> Eski)
+    # Bu liste denenecek öncelikli modellerimiz
     candidate_models = [
-        'gemini-1.5-flash',          # İlk Hedef: Hız Canavarı
-        'gemini-1.5-flash-latest',   # Alternatif isim
-        'gemini-1.5-pro',            # Güvenli Liman (Biraz yavaş ama zeki)
-        'gemini-pro'                 # Son Çare (Eski toprak)
+        'gemini-1.5-flash',
+        'gemini-1.5-pro',
+        'gemini-2.0-flash-exp',
+        'gemini-1.0-pro'
     ]
     
     last_error = ""
     
+    # 1. Önce bildiklerimizi deneyelim
     for model_name in candidate_models:
         try:
-            # Modeli yükle
             model = genai.GenerativeModel(model_name)
-            # Üretmeyi dene
             response = model.generate_content(prompt)
             return response
         except Exception as e:
-            # Hata alırsak (404, 429 vs) logla ve sıradaki modele geç
             last_error = str(e)
-            print(f"⚠️ {model_name} başarısız oldu, diğerine geçiliyor... Hata: {e}")
-            time.sleep(1) # API'yi boğmamak için 1 saniye nefes al
+            time.sleep(0.5)
             continue
             
-    # Hiçbiri çalışmazsa yapay bir hata mesajı döndür
+    # 2. HİÇBİRİ ÇALIŞMAZSA: Google'a "E elinde ne var?" diye soralım
+    try:
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+        
+        debug_msg = f"⚠️ HATA: Seçilen modeller çalışmadı. Ancak hesabınızda ŞU MODELLER AÇIK (Bunu geliştiriciye ilet): {available_models}"
+    except Exception as e:
+        debug_msg = f"⚠️ Kritik Hata: Modeller bile listelenemedi. API Key veya Yetki sorunu olabilir. Detay: {last_error}"
+
     class FakeResponse:
-        text = f"⚠️ Sistem şu an aşırı yoğun. Lütfen 1 dakika sonra tekrar deneyin. (Teknik Detay: {last_error})"
+        text = debug_msg
     return FakeResponse()
 
 # --- 7 SÜTUNUN ANAYASASI ---
 MINISTRIES = {
     "SAGLIK": {
         "name": "🏥 Danimarka Sağlık Bakanlığı",
-        "role": "Sen Danimarka sağlık sistemi (Sundhed) uzmanı, şefkatli bir doktorsun.",
-        "context": "Konular: Aile hekimi (Praktiserende læge), 1813 Acil Hattı, Sundhedskort, İlaçlar."
+        "role": "Sen Danimarka sağlık sistemi (Sundhed) uzmanısin.",
+        "context": "Konular: Aile hekimi, 1813, Sundhedskort."
     },
     "EGITIM": {
         "name": "🎓 Eğitim Bakanlığı",
         "role": "Sen Danimarka eğitim sistemi uzmanısın.",
-        "context": "Konular: Kreş (Vuggestue), Okul, Lise, Üniversite, SU maaşı."
+        "context": "Konular: Kreş, Okul, Lise, Üniversite, SU."
     },
     "KARIYER": {
         "name": "💼 Çalışma ve Kariyer Bakanlığı",
-        "role": "Sen sert bir kariyer koçu ve iş hukuku uzmanısın.",
-        "context": "Konular: Jobindex, CV, Dagpenge (İşsizlik maaşı), A-kasse, Sendikalar."
+        "role": "Sen iş ve kariyer uzmanısın.",
+        "context": "Konular: Jobindex, CV, Dagpenge, A-kasse."
     },
     "FINANS": {
         "name": "💰 Ekonomi ve Vergi Bakanlığı",
-        "role": "Sen Skat.dk (Vergi) ve yatırım uzmanısın.",
-        "context": "Konular: Vergi kartları (Forskudsopgørelse), Vergi iadesi, NemKonto."
+        "role": "Sen Skat (Vergi) uzmanısın.",
+        "context": "Konular: Vergi, Forskudsopgørelse, Banka."
     },
     "EMLAK": {
         "name": "🏠 Konut ve Barınma Bakanlığı",
-        "role": "Sen Kopenhag emlak piyasasının kurdusun.",
-        "context": "Konular: Kiralık ev bulma, Boligstøtte (Kira yardımı), Elektrik/Su."
+        "role": "Sen emlak uzmanısın.",
+        "context": "Konular: Kiralık ev, Boligstøtte."
     },
     "HUKUK": {
         "name": "⚖️ Adalet ve Vatandaşlık Bakanlığı",
-        "role": "Sen tecrübeli bir Danimarka avukatısın.",
-        "context": "Konular: Oturum izni, Vatandaşlık, MitID, Boşanma."
+        "role": "Sen avukatsın.",
+        "context": "Konular: Oturum izni, Vatandaşlık, MitID."
     },
     "SOSYAL": {
         "name": "🎉 Kültür ve Sosyal Yaşam Bakanlığı",
-        "role": "Sen Danimarka'nın en eğlenceli rehberisin.",
-        "context": "Konular: Etkinlikler, Restoranlar, Tivoli, Festivaller."
+        "role": "Sen yaşam rehberisin.",
+        "context": "Konular: Etkinlikler, Tivoli."
     }
 }
 
 def ask_the_government(user_query):
-    # --- ADIM A: YÖNLENDİRİCİ (ROUTER) ---
-    router_prompt = f"""
-    Sen Danimarka Devlet Sisteminin Yöneticisisin.
-    Gelen soruyu analiz et ve aşağıdaki kategorilerden hangisine ait olduğunu TEK KELİME ile söyle.
-    Kategoriler: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL
-    Soru: "{user_query}"
-    Cevap (Sadece kategori kodu):
-    """
-    
-    # Router için de güvenli fonksiyonu kullanıyoruz
+    # Router
+    router_prompt = f"Soru: {user_query}. Hangi kategori? (SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL). Tek kelime."
     router_res = generate_with_fallback(router_prompt)
     
     try:
-        category_code = router_res.text.strip().upper().replace(".", "").replace(" ", "")
+        cat = router_res.text.strip().upper().replace(".", "")
     except:
-        category_code = "SOSYAL"
-
-    selected_ministry = MINISTRIES.get(category_code, MINISTRIES["SOSYAL"])
+        cat = "SOSYAL"
+        
+    selected = MINISTRIES.get(cat, MINISTRIES["SOSYAL"])
     
-    # --- ADIM B: UZMAN CEVABI (AGENT) ---
-    agent_prompt = f"""
-    SENİN ROLÜN: {selected_ministry['role']}
-    UZMANLIK ALANIN: {selected_ministry['context']}
-    
-    KULLANICI SORUSU: "{user_query}"
-    
-    GÖREVİN: 
-    Bu soruyu Danimarka kurallarına göre Türkçe cevapla.
-    """
-    
+    # Agent
+    agent_prompt = f"Rolün: {selected['role']}. Soru: {user_query}. Cevapla:"
     final_res = generate_with_fallback(agent_prompt)
     
-    return {
-        "ministry_name": selected_ministry['name'],
-        "answer": final_res.text
-    }
+    return {"ministry_name": selected['name'], "answer": final_res.text}
