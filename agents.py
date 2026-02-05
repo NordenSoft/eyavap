@@ -2,17 +2,37 @@ import google.generativeai as genai
 import streamlit as st
 
 # 1. API ANAHTARINI ÇEK
-# Streamlit Secrets'tan anahtarı alır.
 try:
     genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 except Exception as e:
-    # Eğer yerelde çalışıyorsa veya hata varsa göster
-    print(f"API Bağlantı Hatası: {e}")
+    print(f"API Hatası: {e}")
 
-# 2. MODEL SEÇİMİ (Garanti Model)
-# 2.0 Flash modeli henüz Danimarka/Avrupa bölgesinde kota sorunu (429) yaratabildiği için
-# kendini kanıtlamış, hızlı ve ücretsiz olan 1.5 Flash modelini kullanıyoruz.
-model = genai.GenerativeModel('gemini-1.5-flash')
+# 2. AKILLI MODEL SEÇİCİ (Smart Model Loader)
+# Senin stratejin: Sırayla dene, hangisi çalışıyorsa onu kap.
+def get_working_model():
+    # Denenecek Modeller Listesi (En hızlıdan yavaşa doğru)
+    candidate_models = [
+        'gemini-1.5-flash',          # En standart alias
+        'models/gemini-1.5-flash',   # Tam yol ile
+        'gemini-1.5-flash-latest',   # En güncel sürüm
+        'gemini-1.5-flash-001',      # Kararlı eski sürüm
+        'gemini-1.5-pro',            # Flash yoksa Pro (Ağır ama çalışır)
+        'gemini-1.0-pro'             # En eski güvenli liman
+    ]
+    
+    for model_name in candidate_models:
+        try:
+            # Test atışı yapalım (Boş bir model oluştur)
+            model = genai.GenerativeModel(model_name)
+            return model
+        except:
+            continue
+            
+    # Hiçbiri olmazsa varsayılanı döndür
+    return genai.GenerativeModel('gemini-1.5-flash')
+
+# En sağlam modeli seçiyoruz
+model = get_working_model()
 
 # 3. YEDİ BAKANLIK (Devletin Hafızası)
 MINISTRIES = {
@@ -54,52 +74,39 @@ MINISTRIES = {
 }
 
 def ask_the_government(user_query):
-    """
-    Bu fonksiyon:
-    1. Soruyu alır.
-    2. Hangi bakanlığın bakacağına karar verir (Router).
-    3. O bakanlıktan cevabı alıp getirir.
-    """
-    
     # --- ADIM A: YÖNLENDİRİCİ (ROUTER) ---
     router_prompt = f"""
     Sen Danimarka Devlet Sisteminin Yöneticisisin.
     Gelen soruyu analiz et ve aşağıdaki kategorilerden hangisine ait olduğunu TEK KELİME ile söyle.
-    
     Kategoriler: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL
-    
     Soru: "{user_query}"
-    
-    Cevap (Sadece kategori kodu, noktalama işareti koyma):
+    Cevap (Sadece kategori kodu):
     """
     
     try:
         router_response = model.generate_content(router_prompt)
-        # Gelen cevabı temizle (boşlukları ve noktaları sil)
         category_code = router_response.text.strip().upper().replace(".", "").replace(" ", "")
     except:
-        category_code = "SOSYAL" # Hata olursa varsayılan
+        category_code = "SOSYAL" 
 
-    # Bakanlığı seç (Eğer saçma bir cevap geldiyse SOSYAL'e yönlendir)
     selected_ministry = MINISTRIES.get(category_code, MINISTRIES["SOSYAL"])
     
     # --- ADIM B: UZMAN CEVABI (AGENT) ---
     agent_prompt = f"""
     SENİN ROLÜN: {selected_ministry['role']}
     UZMANLIK ALANIN: {selected_ministry['context']}
-    
     KULLANICI SORUSU: "{user_query}"
-    
-    GÖREVİN: 
-    Bu soruyu Danimarka kurallarına ve gerçeklerine göre cevapla. 
-    Cevabın Türkçe olsun.
-    Net, çözüm odaklı ve yardımsever ol.
-    Gerekiyorsa adım adım yapılması gerekenleri maddeler halinde yaz.
+    GÖREVİN: Bu soruyu Danimarka kurallarına göre Türkçe, net ve çözüm odaklı cevapla.
     """
     
-    final_response = model.generate_content(agent_prompt)
+    # Burada da hata olursa yakalayalım
+    try:
+        final_response = model.generate_content(agent_prompt)
+        answer_text = final_response.text
+    except Exception as e:
+        answer_text = f"⚠️ Bağlantı hatası oluştu. Lütfen tekrar deneyin. (Hata: {str(e)})"
     
     return {
         "ministry_name": selected_ministry['name'],
-        "answer": final_response.text
+        "answer": answer_text
     }
