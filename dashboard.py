@@ -1,79 +1,59 @@
 import streamlit as st
-from agents import ask_the_government
 import datetime
 
-# --- GÜVENLİK DUVARI: KÜTÜPHANE KONTROLÜ ---
-# Eğer gspread yüklü değilse veya hata verirse site çökmesin.
+# --- KÜTÜPHANE KONTROLÜ (BEYAZ EKRANI ÖNLER) ---
 try:
     import gspread
     from oauth2client.service_account import ServiceAccountCredentials
-    HAS_GOOGLE_SHEETS = True
+    HAS_SHEETS = True
 except ImportError:
-    HAS_GOOGLE_SHEETS = False
-    print("⚠️ Google Sheets kütüphaneleri eksik.")
+    HAS_SHEETS = False
+    # Hata olsa bile site açılacak, sadece sheets çalışmayacak
+    print("⚠️ UYARI: gspread veya oauth2client yüklenmemiş.")
+
+from agents import ask_the_government
 
 # 1. PAGE CONFIG
-st.set_page_config(
-    page_title="Tora: Denmark Assistant",
-    page_icon="🇩🇰",
-    layout="centered"
-)
+st.set_page_config(page_title="Tora: Denmark Assistant", page_icon="🇩🇰", layout="centered")
 
-# 2. STYLES
-st.markdown("""
-<style>
-    .stChatMessage { border-radius: 15px; padding: 10px; }
-    .ministry-header { background-color: #f8f9fa; padding: 15px; border-radius: 10px; margin-bottom: 20px; text-align: center; border: 1px solid #e9ecef; }
-</style>
-""", unsafe_allow_html=True)
-
-# --- GOOGLE SHEETS LOGLAMA (ZIRHLI VERSİYON) ---
+# 2. LOGLAMA FONKSİYONU (HATA KORUMALI)
 def log_to_google_sheet(user_query, ministry, ai_response):
-    if not HAS_GOOGLE_SHEETS:
-        return
-
+    if not HAS_SHEETS:
+        return # Kütüphane yoksa hiç uğraşma
+    
     try:
-        # 1. Şifre kontrolü
+        # Şifre kontrolü
         if "gcp_service_account" not in st.secrets:
-            print("⚠️ Secrets içinde 'gcp_service_account' bulunamadı.")
-            return
+            return 
 
-        # 2. Bağlantı girişimi
+        # Bağlantı
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds_dict = dict(st.secrets["gcp_service_account"]) # Dict formatına zorla
+        # Secrets formatını düzelt
+        creds_dict = dict(st.secrets["gcp_service_account"])
         
+        # Özel Anahtar düzeltmesi (Tırnak hatalarını temizle)
+        if "private_key" in creds_dict:
+            creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+
         creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
-        
-        # 3. Yazma işlemi
         sheet = client.open("DK-OS-DATABASE").sheet1
+        
         timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         sheet.append_row([timestamp, user_query, ministry, ai_response])
-        print("✅ Log başarıyla kaydedildi.")
-        
+        print("✅ Log Kaydedildi!")
     except Exception as e:
-        # HATA OLURSA SİTEYİ ÇÖKERTME, SADECE KONSOLA YAZ
-        print(f"⚠️ Loglama Hatası (Sistem çalışmaya devam ediyor): {e}")
+        print(f"⚠️ Loglama Hatası: {e}")
 
-# 3. SIDEBAR
-with st.sidebar:
-    st.title("🇩🇰 Tora")
-    st.caption("v6.3 | Safe Mode")
-    st.markdown("---")
-    if st.button("🗑️ Temizle"):
-        st.session_state.messages = []
-        st.rerun()
-
-# 4. HEADER & CHAT
+# 3. ARAYÜZ
 st.title("🇩🇰 Tora")
-st.markdown("### Dijital Devlet Asistanı")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
-        st.markdown(message["content"], unsafe_allow_html=True)
+        st.markdown(message["content"])
 
 if prompt := st.chat_input("Sorunuzu yazın..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
@@ -81,22 +61,14 @@ if prompt := st.chat_input("Sorunuzu yazın..."):
         st.markdown(prompt)
 
     with st.spinner("Tora düşünüyor..."):
-        # Yapay zekaya sor
         response_data = ask_the_government(prompt)
         
-        # --- LOGLAMA (Hata olsa bile devam eder) ---
+        # Loglamayı dene (Hata varsa sessizce geçer)
         log_to_google_sheet(prompt, response_data['ministry_name'], response_data['answer'][:200])
-        # -------------------------------------------
 
-        header_html = f"""
-        <div class="ministry-header">
-            <div style="font-size: 40px;">{response_data['ministry_icon']}</div>
-            <div style="{response_data['ministry_style']} font-weight:bold; font-size: 18px;">{response_data['ministry_name']}</div>
-        </div>
-        """
-        full_response = header_html + response_data["answer"]
+        full_response = f"### {response_data['ministry_icon']} {response_data['ministry_name']}\n\n{response_data['answer']}"
 
     with st.chat_message("assistant"):
-        st.markdown(full_response, unsafe_allow_html=True)
+        st.markdown(full_response)
     
     st.session_state.messages.append({"role": "assistant", "content": full_response})
