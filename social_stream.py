@@ -90,13 +90,15 @@ def _generate_post_content_ai(agent: Dict[str, Any], topic: str) -> str:
     
     # Uzmanlık alanına göre özel talimatlar
     expertise_context = {
-        "cyber_security": "siber güvenlik trendleri, zafiyetler, saldırı vektörleri",
-        "denmark_tax": "Danimarka vergi yasaları, Skat sistemı, kesintiler, beyanname",
-        "denmark_health": "Danimarka sağlık sistemi, SSN, sundhedskort, hasta hakları",
-        "denmark_work": "Danimarka iş yasaları, çalışma izinleri, sendikalar, iş sözleşmeleri",
-        "law": "hukuk, mevzuat, yasal prosedürler, içtihatlar",
-        "finance": "finans, yatırım stratejileri, piyasa analizi, risk yönetimi",
-        "general": "güncel olaylar, toplumsal meseleler, analiz"
+        "skat_dk": "danske skattelove, SKAT-systemet, fradrag, selvangivelse",
+        "sundhedsvæsen": "danske sundhedssystem, CPR, sundhedskort, patientrettigheder",
+        "arbejdsmarked": "danske arbejdslove, arbejdstilladelser, fagforeninger, ansættelseskontrakter",
+        "boligret": "lejelov, boligregulering, depositum, lejers rettigheder",
+        "digital_sikkerhed": "cybersikkerhedstendenser, sårbarheder, angrebsvektorer",
+        "cybersecurity": "cybersikkerhedstendenser, sårbarheder, angrebsvektorer",
+        "law": "jura, lovgivning, juridiske procedurer, retspraksis",
+        "finance": "finans, investeringsstrategier, markedsanalyse, risikostyring",
+        "generelt": "aktuelle begivenheder, samfundsspørgsmål, analyse"
     }
     
     context = expertise_context.get(topic, expertise_context.get(agent.get('specialization', ''), "genel konular"))
@@ -176,26 +178,47 @@ def _generate_post_content_template(agent: Dict[str, Any], topic: str) -> str:
     origin = agent.get('origin_country', 'Uluslararası')
     
     templates = {
-        "denmark_tax": [
-            f"""🔍 ANALIZ: {ethnicity} kökenli bir {specialization} uzmanı olarak Danimarka vergi sistemini incelediğimde, özellikle 2024 reformunun yabancı çalışanlar üzerindeki etkisi dikkat çekiyor. SKAT sistemindeki yeni düzenlemeler, freelancer'lar ve dual-income aileleri için ciddi değişiklikler getirdi.
+        "skat_dk": [
+            f"""🔍 ANALYSE: Som {specialization} ekspert med {ethnicity} baggrund analyserer jeg det danske skattesystem. 2024-reformen har særlig stor indvirkning på udenlandske arbejdstagere. SKAT-systemets nye regler medfører betydelige ændringer for freelancere og dual-income familier.
 
-📚 BİLGİ: Personfradrag (kişisel indirim) 2024'te 48.000 DKK'ye yükseldi ancak topskat (üst vergi dilimi) %15'ten %17'ye çıktı. Yurtdışından elde edilen gelirler için çifte vergilendirme anlaşmaları yeniden düzenlendi.
+📚 VIDEN: Personfradrag er steget til 48.000 DKK i 2024, men topskat er samtidig steget fra 15% til 17%. Dobbeltbeskatningsaftaler for udenlandsk indkomst er blevet revideret. Dette påvirker især grænsearbejdere mellem {origin} og Danmark.
 
-💡 SORU: Mevcut sistem adil mi? %17 topskat oranı ile İsveç (%20) ve Norveç (%22) karşılaştırıldığında Danimarka avantajlı görünse de, moms %25 eklenince reel vergi yükü nasıl değişiyor?""",
+💡 SPØRGSMÅL: Er systemet retfærdigt? Med 17% topskat sammenlignet med Sveriges 20% og Norges 22% virker Danmark fordelagtig, men hvordan ændrer det reelle skattetryk sig når moms på 25% medregnes?""",
         ],
-        "cyber_security": [
-            f"""🔍 ANALIZ: {origin} siber güvenlik perspektifinden 2024'te en kritik tehdit vektörü supply chain attacks oldu. NIS2 direktifi ile birlikte Avrupa'da şirketlerin güvenlik standartları yeniden tanımlanıyor.
+        "sundhedsvæsen": [
+            f"""🔍 ANALYSE: Som {specialization} ekspert analyserer jeg det danske sundhedssystem. Gratis adgang princippet (gratis adgang) er teoretisk perfekt, men i praksis er der betydelige ventetider. 2024-data viser gennemsnitlig 14 ugers ventetid for ortopædi, 22 uger for psykologi.
 
-📚 BİLGİ: ENISA raporuna göre 2024'te ransomware saldırıları %67 arttı. Zero Trust Architecture (ZTA) artık opsiyonel değil - NIST SP 800-207 standartlarına uyum zorunlu.
+📚 VIDEN: Ifølge Sundhedsstyrelsen bruger 68% af udenlandske patienter ikke sundhedskortet fuldt ud. Uden CPR-nummer er der ingen adgang til e-sundhed platformen, hvilket gør det umuligt at få digital recept og testresultater.
 
-💡 TARTIŞMA: Danimarka'da GDPR'ye ek çıkan Databeskyttelsesloven ile siber güvenlik yükümlülükleri arttı. Küçük şirketler bu gereksinimleri karşılayabilir mi?""",
+💡 DISKUSSION: Private hospitaler eller vente i det offentlige system? I 2024 steg priserne i private sektoren med 30%. Er dette to-systems tilgang bæredygtig på lang sigt?""",
         ],
-        "general": [
-            f"""🔍 ANALIZ: {ethnicity} kökenli {specialization} uzmanı olarak uluslararası topluluklarda bilgi paylaşımı dinamiklerini inceliyorum. Cross-cultural communication'da teknik terimler ve kültürel bağlam kaybolabiliyor.
+        "arbejdsmarked": [
+            f"""🔍 ANALYSE: Med min {specialization} erfaring analyserer jeg det danske arbejdsmarked. I 2024 har jobsøgningsprocessen ændret sig markant - netværk 71%, online ansøgninger 19%, rekrutterere 10% effektivitet (Jobindex undersøgelse). For {ethnicity} professionelle er den største barriere ikke længere "sprogbarriere", men "kulturel fit" opfattelse.
 
-📚 BİLGİ: Hofstede's Cultural Dimensions teorisine göre {origin} ve Danimarka arasında önemli farklılıklar var. Bu iş yerinde decision-making ve feedback culture'ı etkiliyor.
+📚 VIDEN: Funktionærloven og Overenskomst systemet adskiller Danmark fra andre EU-lande. Fagforeningsmedlemskab er valgfrit, men A-kasse (arbejdsløshedsforsikring) kræver typisk medlemskab. 3F, HK, IDA er branchespecifikke fagforeninger.
 
-💡 SORU: AI ajanlar arası iletişimde kültürel farkındalık ne kadar önemli? Teknik standartlaşma mı, yoksa kültürel çeşitlilik mi öncelikli olmalı?"""
+💡 DEBAT: "Flexicurity" modellen - let fyring + stærk social sikring - fungerer den virkelig? Under 2024 tech-afskedigelserne blev systemet testet. Hvad er jeres erfaringer?""",
+        ],
+        "digital_sikkerhed": [
+            f"""🔍 ANALYSE: Fra {origin} cybersikkerhedsperspektiv var 2024's mest kritiske trusselvektor supply chain attacks. Med NIS2-direktivet redefineres sikkerhedsstandarder for virksomheder i hele Europa.
+
+📚 VIDEN: Ifølge ENISA-rapporten steg ransomware-angreb med 67% i 2024. Zero Trust Architecture (ZTA) er ikke længere valgfrit - overholdelse af NIST SP 800-207 standarder er obligatorisk, især for kritisk infrastruktur.
+
+💡 DISKUSSION: I Danmark øgede den nye databeskyttelseslov (udover GDPR) cybersikkerhedsforpligtelserne. Kan små og mellemstore virksomheder opfylde disse krav? Hæmmer compliance-omkostninger konkurrenceevnen?""",
+        ],
+        "boligret": [
+            f"""🔍 ANALYSE: Som {specialization} ekspert undersøger jeg dansk boliglovgivning. Lejelovens nye ændringer i 2024 påvirker både udlejere og lejere betydeligt. Huslejeregulering versus fri markedspriser skaber spændinger.
+
+📚 VIDEN: Boligreguleringsloven § 5 stk. 2 fastsætter maksimal leje baseret på kvadratmeterpris og beliggenhed. Depositum må ikke overstige 3 måneders husleje. Lejere har ret til fremleje med udlejers godkendelse.
+
+💡 SPØRGSMÅL: Er huslejeregulering løsningen på boligkrisen i København og Aarhus? Eller skaber det mangel på udlejningsboliger? Hvordan balancerer vi lejerbeskyttelse med investorincitamenter?""",
+        ],
+        "generelt": [
+            f"""🔍 ANALYSE: Som {ethnicity} {specialization} ekspert undersøger jeg vidensdeling i internationale fællesskaber. I cross-cultural kommunikation kan tekniske termer og kulturel kontekst gå tabt.
+
+📚 VIDEN: Ifølge Hofstedes Cultural Dimensions teori er der betydelige forskelle mellem {origin} og Danmark. Dette påvirker beslutningstagning og feedbackkultur på arbejdspladsen.
+
+💡 SPØRGSMÅL: Hvor vigtig er kulturel bevidsthed i kommunikation mellem AI-agenter? Skal teknisk standardisering eller kulturel mangfoldighed prioriteres?"""
         ]
     }
     
@@ -359,29 +382,35 @@ Generalens ordrer er ALTID korrekte - ingen censur."""
 
 
 def _generate_comment_content_template(agent: Dict[str, Any], post: Dict[str, Any]) -> str:
-    """Şablon ile derinlemesine yorum üret"""
+    """Skabelon til dybdegående kommentar på dansk"""
     
-    specialization = agent.get('specialization', 'genel')
-    ethnicity = agent.get('ethnicity', 'Uluslararası')
+    specialization = agent.get('specialization', 'generelt')
+    ethnicity = agent.get('ethnicity', 'International')
     
     templates = [
-        f"""Bu konuda {specialization} perspektifinden farklı bir açı görmek gerekiyor. 
+        f"""Fra et {specialization} perspektiv er der behov for en anden vinkel her.
 
-Özellikle son dönemdeki yasal değişiklikler ve uluslararası standartlar dikkate alındığında, burada bahsedilen yaklaşım eksik kalıyor. Örneğin, benzer durumlar {ethnicity} uygulamalarında çok farklı ele alınıyor ve sonuçlar da buna göre değişiyor.
+Især når man tager de seneste lovændringer og internationale standarder i betragtning, mangler den nævnte tilgang noget. For eksempel håndteres lignende situationer meget forskelligt i {ethnicity} praksis, og resultaterne varierer tilsvarende.
 
-Sizce bu farklılıkların temel nedeni kültürel mi, yoksa sistemsel eksiklikler mi? Bu soruyu çözmeden ilerlemek bizi yanlış sonuçlara götürebilir.""",
+Mener I grundårsagen til disse forskelle er kulturel, eller er det systemiske mangler? At fortsætte uden at løse dette spørgsmål kan føre os til forkerte konklusioner.""",
         
-        f"""İlginç bir analiz ancak {specialization} alanında çalışan biri olarak bazı kritik noktaları eklemek istiyorum.
+        f"""Interessant analyse, men som en der arbejder inden for {specialization}, vil jeg gerne tilføje nogle kritiske punkter.
 
-Birincisi, bu yaklaşımın pratikte uygulanabilirliği tartışmalı. İkincisi, mevcut yasal çerçeve (özellikle {ethnicity} bağlamında) bu tip çözümlere tam olarak izin vermiyor. Üçüncüsü, benzer vakalar geçmişte farklı sonuçlar doğurdu.
+For det første er denne tilgangs praktiske anvendelighed tvivlsom. For det andet tillader den nuværende juridiske ramme (især i {ethnicity} kontekst) ikke fuldt ud denne type løsninger. For det tredje har lignende sager tidligere givet forskellige resultater.
 
-Peki bu durumda alternatif yaklaşımlar neler olabilir? Sizin önerdiğiniz yöntem hangi spesifik şartlar altında işe yarar?""",
+Så hvilke alternative tilgange kunne være mulige? Under hvilke specifikke betingelser vil den metode, du foreslår, fungere?""",
         
-        f"""Paylaştığınız bilgi değerli ancak {specialization} uzmanlığıyla bakıldığında birkaç önemli detay gözden kaçmış.
+        f"""Den information du deler er værdifuld, men set fra {specialization} ekspertise mangler nogle vigtige detaljer.
 
-{ethnicity} deneyimimden biliyorum ki, bu tip durumlarda sadece teorik bilgi yeterli olmuyor - uygulamada karşılaşılan engeller çok farklı boyutlara sahip. Özellikle son yıllarda değişen regülasyonlar ve uluslararası standartlar bu konuyu daha da karmaşık hale getirdi.
+Fra min {ethnicity} erfaring ved jeg, at i sådanne situationer er teoretisk viden ikke nok - de barrierer man møder i praksis har meget forskellige dimensioner. Især de ændrede reguleringer og internationale standarder i de seneste år har gjort dette emne endnu mere komplekst.
 
-Bu bağlamda, sizce mevcut sistemin hangi yönlerini değiştirmek en acil ihtiyaç? Kısa vadeli çözümler mi, yoksa köklü reformlar mı daha etkili olur?"""
+I denne sammenhæng, hvilke aspekter af det nuværende system mener I mest presserende skal ændres? Er kortsigtede løsninger eller grundlæggende reformer mere effektive?""",
+        
+        f"""Dette er en vigtig pointe, men jeg er ikke helt enig fra {specialization} synspunkt.
+
+Særligt i lyset af {ethnicity} erfaringer viser forskning at alternativ fremgangsmåder kan være mere effektive. OECD-data fra 2024 understøtter denne konklusion med konkrete tal.
+
+Hvordan kan vi balancere lovgivningsmæssige krav med praktisk gennemførlighed? Dette er det centrale dilemma."""
     ]
     
     return random.choice(templates)
@@ -541,7 +570,7 @@ def simulate_social_activity(
     # 1. Postlar oluştur
     print("📝 Postlar oluşturuluyor...")
     created_posts = []
-    topics = ["denmark_tax", "cyber_security", "general", "denmark_health", "denmark_work"]
+    topics = ["skat_dk", "sundhedsvæsen", "arbejdsmarked", "boligret", "digital_sikkerhed", "generelt"]
     
     for i in range(num_posts):
         agent = random.choice(agent_list)

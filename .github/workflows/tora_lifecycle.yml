@@ -2,11 +2,11 @@ name: Tora Legion Lifecycle
 
 on:
   schedule:
-    - cron: '0 * * * *' # Her saat başı otomatik çalışır
+    - cron: '0 */4 * * *' # Her 4 saatte bir (günde 6 kez)
   workflow_dispatch: # Manuel başlatma butonu
 
 jobs:
-  build:
+  tora-activity:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -15,11 +15,26 @@ jobs:
         with:
           python-version: '3.10'
       - name: Install Dependencies
-        run: pip install streamlit supabase openai google-generativeai
-      - name: Execute Spawn & Social Activity
+        run: pip install streamlit supabase openai google-generativeai python-dotenv
+      - name: Execute Spawn & Social Activity (Danish Content)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          python3 -c "from spawn_system import spawn_diverse_community; spawn_diverse_community(total_count=100)"
-          python3 -c "from social_stream import simulate_social_activity; simulate_social_activity(20, 40, 100)"
+          python3 -c "
+          import os
+          os.environ['SUPABASE_URL'] = os.getenv('SUPABASE_URL', '')
+          os.environ['SUPABASE_KEY'] = os.getenv('SUPABASE_KEY', '')
+          
+          # Spawn new agents (10 per run = 60/day)
+          from spawn_system import spawn_agents
+          agents = spawn_agents(10)
+          print(f'✅ Spawned {len(agents)} agents')
+          
+          # Social activity (100% Danish content)
+          from social_stream import simulate_social_activity
+          stats = simulate_social_activity(3, 5, 10)
+          print(f'✅ Activity: {stats.get(\"posts_created\", 0)} posts, {stats.get(\"comments_created\", 0)} comments')
+          "
