@@ -14,71 +14,123 @@ from database import get_database
 
 ETHNICITIES = [
     # Asya
-    ("Japon", "Japanese", "ja"),
-    ("Çinli", "Chinese", "zh"),
-    ("Koreli", "Korean", "ko"),
-    ("Hint", "Indian", "hi"),
-    ("Vietnamlı", "Vietnamese", "vi"),
-    ("Tayland", "Thai", "th"),
+    ("Japanese", "Japanese", "ja"),
+    ("Chinese", "Chinese", "zh"),
+    ("Korean", "Korean", "ko"),
+    ("Indian", "Indian", "hi"),
+    ("Vietnamese", "Vietnamese", "vi"),
+    ("Thai", "Thai", "th"),
     
-    # Avrupa
-    ("Danimarkalı", "Danish", "da"),
-    ("İsveçli", "Swedish", "sv"),
-    ("Norveçli", "Norwegian", "no"),
-    ("Alman", "German", "de"),
-    ("Fransız", "French", "fr"),
-    ("İtalyan", "Italian", "it"),
-    ("İspanyol", "Spanish", "es"),
-    ("İngiliz", "British", "en"),
-    ("Rus", "Russian", "ru"),
-    ("Polonyalı", "Polish", "pl"),
-    ("Türk", "Turkish", "tr"),
+    # Avrupa (Denmark-focused)
+    ("Danish", "Danish", "da"),
+    ("Swedish", "Swedish", "sv"),
+    ("Norwegian", "Norwegian", "no"),
+    ("German", "German", "de"),
+    ("French", "French", "fr"),
+    ("Italian", "Italian", "it"),
+    ("Spanish", "Spanish", "es"),
+    ("British", "British", "en"),
+    ("Russian", "Russian", "ru"),
+    ("Polish", "Polish", "pl"),
+    ("Turkish", "Turkish", "tr"),
     
     # Amerika
-    ("Amerikalı", "American", "en"),
-    ("Kanadalı", "Canadian", "en"),
-    ("Meksikalı", "Mexican", "es"),
-    ("Brezilyalı", "Brazilian", "pt-BR"),
-    ("Arjantinli", "Argentinian", "es"),
+    ("American", "American", "en"),
+    ("Canadian", "Canadian", "en"),
+    ("Mexican", "Mexican", "es"),
+    ("Brazilian", "Brazilian", "pt-BR"),
+    ("Argentinian", "Argentinian", "es"),
     
     # Afrika
-    ("Güney Afrikalı", "South African", "en"),
-    ("Nijeryalı", "Nigerian", "en"),
-    ("Mısırlı", "Egyptian", "ar"),
+    ("South African", "South African", "en"),
+    ("Nigerian", "Nigerian", "en"),
+    ("Egyptian", "Egyptian", "ar"),
     
     # Orta Doğu
-    ("İsrailli", "Israeli", "he"),
-    ("Suudi", "Saudi", "ar"),
-    ("İranlı", "Iranian", "fa"),
+    ("Israeli", "Israeli", "he"),
+    ("Saudi", "Saudi", "ar"),
+    ("Iranian", "Iranian", "fa"),
 ]
 
+# Name pools by ethnicity (Danish and International)
+NAME_POOLS = {
+    "Danish": {
+        "first": ["Mads", "Lars", "Søren", "Niels", "Anders", "Peter", "Jens", "Thomas", "Michael", "Henrik",
+                  "Emma", "Sofia", "Anna", "Ida", "Freja", "Clara", "Laura", "Sofie", "Mathilde", "Isabella"],
+        "last": ["Jensen", "Nielsen", "Hansen", "Pedersen", "Andersen", "Christensen", "Larsen", "Sørensen", 
+                 "Rasmussen", "Jørgensen", "Petersen", "Madsen", "Kristensen", "Olsen", "Thomsen"]
+    },
+    "German": {
+        "first": ["Hans", "Klaus", "Wolfgang", "Jürgen", "Michael", "Thomas", "Andreas", "Stefan",
+                  "Anna", "Emma", "Sophie", "Maria", "Laura", "Lisa", "Julia", "Sarah"],
+        "last": ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Schulz"]
+    },
+    "Swedish": {
+        "first": ["Erik", "Karl", "Anders", "Lars", "Per", "Olof", "Anna", "Maria", "Karin", "Ingrid"],
+        "last": ["Andersson", "Johansson", "Karlsson", "Nilsson", "Eriksson", "Larsson", "Olsson", "Persson"]
+    },
+    "Norwegian": {
+        "first": ["Ole", "Lars", "Knut", "Bjørn", "Tor", "Anna", "Ingrid", "Kari", "Mari", "Liv"],
+        "last": ["Hansen", "Johansen", "Olsen", "Larsen", "Andersen", "Pedersen", "Nilsen", "Kristiansen"]
+    },
+    "American": {
+        "first": ["John", "Michael", "David", "James", "Robert", "William", "Richard", "Thomas",
+                  "Jennifer", "Mary", "Patricia", "Linda", "Barbara", "Elizabeth", "Susan", "Jessica"],
+        "last": ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez"]
+    },
+    "British": {
+        "first": ["James", "Oliver", "Harry", "George", "Jack", "Charlie", "Emily", "Olivia", "Amelia", "Isla"],
+        "last": ["Smith", "Jones", "Taylor", "Brown", "Williams", "Wilson", "Johnson", "Davies", "Robinson"]
+    },
+    "French": {
+        "first": ["Jean", "Pierre", "Michel", "André", "Philippe", "Marie", "Sophie", "Claire", "Camille"],
+        "last": ["Martin", "Bernard", "Dubois", "Thomas", "Robert", "Petit", "Durand", "Leroy", "Moreau"]
+    },
+    # Add more as needed, defaults to generic Western names
+}
+
+def get_agent_name(ethnicity: str, nationality: str) -> str:
+    """Generate culturally appropriate agent name"""
+    if nationality in NAME_POOLS:
+        pool = NAME_POOLS[nationality]
+        first = random.choice(pool["first"])
+        last = random.choice(pool["last"])
+        return f"{first} {last}"
+    else:
+        # Fallback to generic international names
+        first_names = ["Alex", "Sam", "Jordan", "Taylor", "Morgan", "Casey", "Riley", "Avery"]
+        last_names = ["Anderson", "Chen", "Kumar", "Silva", "Lopez", "Kim", "Ali", "Novak"]
+        return f"{random.choice(first_names)} {random.choice(last_names)}"
+
 SPECIALIZATIONS = [
-    # Danimarka uzmanları
-    ("denmark_tax", "Vergi Uzmanı", "Skat Specialist"),
-    ("denmark_health", "Sağlık Uzmanı", "Sundhed Specialist"),
-    ("denmark_legal", "Hukuk Uzmanı", "Juridisk Specialist"),
-    ("denmark_residence", "Oturma İzni Uzmanı", "Opholdstilladelse Specialist"),
-    ("denmark_work", "İş Uzmanı", "Arbejde Specialist"),
-    ("denmark_education", "Eğitim Uzmanı", "Uddannelse Specialist"),
+    # Denmark specialists
+    ("skat_dk", "SKAT Specialist"),
+    ("sundhedsvæsen", "Healthcare Specialist"),
+    ("arbejdsmarked", "Labor Market Specialist"),
+    ("boligret", "Housing Law Specialist"),
+    ("digital_sikkerhed", "Digital Security Specialist"),
+    ("uddannelse", "Education Specialist"),
+    ("opholdstilladelse", "Residence Permit Specialist"),
     
-    # Teknik uzmanlar
-    ("cyber_security", "Siber Güvenlik Uzmanı", "CyberSec Specialist"),
-    ("data_analysis", "Veri Analizi Uzmanı", "DataAnalysis Specialist"),
-    ("ai_research", "AI Araştırmacısı", "AI Research Specialist"),
-    ("blockchain", "Blockchain Uzmanı", "Blockchain Specialist"),
-    ("cloud_architecture", "Bulut Mimarı", "Cloud Architect"),
+    # Technical specialists
+    ("cybersecurity", "Cybersecurity Specialist"),
+    ("data_analysis", "Data Analysis Specialist"),
+    ("ai_research", "AI Research Specialist"),
+    ("blockchain", "Blockchain Specialist"),
+    ("cloud_architecture", "Cloud Architect"),
     
-    # Sosyal bilimler
-    ("economics", "Ekonomist", "Economics Specialist"),
-    ("sociology", "Sosyolog", "Sociology Specialist"),
-    ("psychology", "Psikolog", "Psychology Specialist"),
-    ("philosophy", "Filozof", "Philosophy Specialist"),
+    # Social sciences
+    ("economics", "Economics Specialist"),
+    ("sociology", "Sociology Specialist"),
+    ("psychology", "Psychology Specialist"),
+    ("philosophy", "Philosophy Specialist"),
     
-    # Diğer
-    ("medicine", "Doktor", "Medical Doctor"),
-    ("engineering", "Mühendis", "Engineer"),
-    ("finance", "Finans Uzmanı", "Finance Specialist"),
-    ("marketing", "Pazarlama Uzmanı", "Marketing Specialist"),
+    # Other
+    ("medicine", "Medical Doctor"),
+    ("engineering", "Engineer"),
+    ("finance", "Finance Specialist"),
+    ("marketing", "Marketing Specialist"),
+    ("law", "Legal Specialist"),
 ]
 
 PERSONALITY_TRAITS = {
@@ -93,17 +145,17 @@ PERSONALITY_TRAITS = {
 # ==================== SPAWN FONKSİYONLARI ====================
 
 def generate_agent_profile() -> Dict[str, Any]:
-    """Rastgele bir ajan profili oluştur"""
+    """Generate random agent profile with culturally appropriate name"""
     
     ethnicity, nationality, language = random.choice(ETHNICITIES)
-    specialization, spec_name_tr, spec_name_en = random.choice(SPECIALIZATIONS)
+    specialization, spec_display_name = random.choice(SPECIALIZATIONS)
     personality_type = random.choice(list(PERSONALITY_TRAITS.keys()))
     personality_traits = PERSONALITY_TRAITS[personality_type]
     
-    # İsim oluştur
-    agent_name = f"{ethnicity} {spec_name_tr}"
+    # Generate culturally appropriate name
+    agent_name = get_agent_name(ethnicity, nationality)
     
-    # Yaş (18-65)
+    # Age (18-65)
     age_years = random.randint(18, 65)
     birth_date = datetime.now() - timedelta(days=age_years * 365)
     
@@ -116,14 +168,15 @@ def generate_agent_profile() -> Dict[str, Any]:
         "expertise_areas": [specialization, nationality.lower(), language],
         "capabilities": ["research", "analysis", "reporting", "web_search", "social_interaction"],
         "personality_type": personality_type,
-        "merit_score": random.randint(40, 60),  # Başlangıç puanı 40-60 arası
-        "rank": "soldier",
+        "merit_score": random.randint(40, 60),  # Starting merit: 40-60
+        "rank": "menig",  # Danish rank system
         "is_active": True,
-        "birth_date": birth_date.strftime("%Y-%m-%d"),  # ISO format string
+        "birth_date": birth_date.strftime("%Y-%m-%d"),  # ISO format
         "metadata": {
             "personality_traits": personality_traits,
             "age": age_years,
-            "cultural_context": nationality
+            "cultural_context": nationality,
+            "specialization_display": spec_display_name
         }
     }
 

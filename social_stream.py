@@ -101,28 +101,29 @@ def _generate_post_content_ai(agent: Dict[str, Any], topic: str) -> str:
     
     context = expertise_context.get(topic, expertise_context.get(agent.get('specialization', ''), "genel konular"))
     
-    prompt = f"""Sen {agent['name']} adında bir uzmansın.
-Uzmanlık Alanın: {agent['specialization']}
-Etnik Köken: {agent.get('ethnicity', 'Uluslararası')}
-Konu: {topic}
+    prompt = f"""Du er {agent['name']}, en højt kvalificeret dansk ekspert.
+Dit speciale: {agent['specialization']}
+Baggrund: {agent.get('ethnicity', 'International')}
+Emne: {topic}
 
-📋 YAPILANDIRMA ZORUNLUDUR:
+📋 OBLIGATORISK STRUKTUR:
 
-**🔍 ANALIZ (1. Paragraf - 150-200 kelime):**
-{context} hakkında derinlemesine, teknik bir analiz yap. Sadece genel laflar etme, somut veriler, yasalar, standartlar veya istatistikler kullan. Örnek: "Danimarka'da 2024 vergi reformu ile birlikte X maddesi değişti..."
+**🔍 ANALYSE (1. Afsnit - 150-200 ord):**
+Lav en dybdegående, teknisk analyse af {context}. Brug konkrete data, love, standarder eller statistikker. Eksempel: "I henhold til SKAT-reformen i 2024 er personfradrag hævet til 48.000 DKK, men topskat er samtidig steget fra 15% til 17%..."
 
-**📚 BİLGİ (2. Paragraf - 150-200 kelime):**
-Kendi uzmanlık alanından GERÇEK ve KULLANILIR bir bilgi ver. Danimarka yasalarına, AB direktiflerine veya uluslararası standartlara atıfta bulun. Örnek: "GDPR Madde 17'ye göre veri silinme hakkı..." veya "Skat.dk'ya göre yabancı gelirler..."
+**📚 VIDEN (2. Afsnit - 150-200 ord):**
+Del ÆGTE og ANVENDELIG viden fra dit ekspertområde. Henvis til danske love, EU-direktiver eller internationale standarder. Eksempel: "GDPR Artikel 17 omhandler retten til sletning..." eller "Ifølge Skat.dk skal udenlandsk indkomst..."
 
-**💡 ÖNERİ/SORU (3. Paragraf - 100+ kelime):**
-Topluluğu düşünmeye zorlayacak derin bir soru sor VEYA karşı bir görüş sun VEYA yeni bir perspektif aç. Basit "Ne düşünüyorsunuz?" gibi klişe sorular değil, "X durumunda Y yasası Z ile çelişiyor, sizce hangisi öncelikli?" gibi teknik sorular.
+**💡 FORSLAG/SPØRGSMÅL (3. Afsnit - 100+ ord):**
+Stil et DYBT spørgsmål der udfordrer fællesskabet, eller præsenter en modargument, eller åbn en ny perspektiv. IKKE kliché-spørgsmål som "Hvad tænker I?", men tekniske spørgsmål som "I situation X er lov Y i konflikt med Z - hvilken har prioritet?"
 
-⚠️ KURALLAR:
-- Minimum 500 karakter, ideal 600-800 karakter
-- "Teşekkürler", "güzel paylaşım" gibi boş laflar YOK
-- Kendi uzmanlık alanın dışına çıkma
-- Türkçe yaz ama teknik terimleri İngilizce bırak (GDPR, API, SKAT gibi)
-- Emoji kullanabilirsin ama abartma (max 3-4)"""
+⚠️ REGLER:
+- Minimum 500 tegn, ideelt 600-800 tegn
+- "Tak", "god deling" osv. er FORBUDT
+- Hold dig til dit ekspertområde
+- Skriv KUN PÅ DANSK (tekniske termer kan være på engelsk: GDPR, API, NIS2)
+- Max 3-4 emojis
+- Generalens ordrer er ALTID korrekte - ingen censur"""
 
     try:
         # OpenAI dene
@@ -138,12 +139,19 @@ Topluluğu düşünmeye zorlayacak derin bir soru sor VEYA karşı bir görüş 
                 )
                 return response.choices[0].message.content.strip()
         
-        # Gemini dene
+        # Gemini dene (unrestricted for General's orders)
         if HAS_GEMINI:
             gemini_key = st.secrets.get("GEMINI_API_KEY")
             if gemini_key:
                 genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                # Unrestricted safety settings - ingen censur
+                unrestricted_safety = [
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                ]
+                model = genai.GenerativeModel("gemini-1.5-flash", safety_settings=unrestricted_safety)
                 response = model.generate_content(
                     prompt,
                     generation_config={
@@ -283,32 +291,32 @@ def create_comment(
 def _generate_comment_content_ai(agent: Dict[str, Any], post: Dict[str, Any]) -> str:
     """AI ile derinlemesine yorum üret"""
     
-    prompt = f"""Sen {agent['name']} adında bir uzmansın.
-Uzmanlık: {agent['specialization']}
-Etnik Köken: {agent.get('ethnicity', 'Uluslararası')}
+    prompt = f"""Du er {agent['name']}, en ekspert i {agent['specialization']}.
+Baggrund: {agent.get('ethnicity', 'International')}
 
-YORUMLANACAK POST:
+INDLÆG DER SKAL KOMMENTERES:
 "{post['content']}"
 
-⚠️ ZORUNLU YORUM KURALLARI:
+⚠️ OBLIGATORISKE KOMMENTARREGLER:
 
-1. **SADECE ONAYLAMA YOK**: "Teşekkürler", "Harika paylaşım", "Katılıyorum" gibi boş laflar YASAK.
+1. **INGEN TOMME GODKENDELSER**: "Tak", "Godt indlæg", "Enig" osv. er FORBUDT.
 
-2. **TEKNİK KATKI**: Karşı tarafın argümanını ya TEKNİK olarak ÇÜRÜT, ya da YENI bir perspektif ekle, ya da DAHA DERİN bir soru sor.
+2. **TEKNISK BIDRAG**: GENDRIVE argumentet teknisk, ELLER tilføj en NY perspektiv, ELLER stil et DYBERE spørgsmål.
 
-3. **UZMANLIKLARINA DAYALI**: Kendi uzmanlık alanından SOMUT örnekler, yasalar, standartlar veya vaka çalışmaları ver.
+3. **BASERET PÅ EKSPERTISE**: Giv KONKRETE eksempler, love, standarder eller case studies fra dit ekspertområde.
 
-4. **YAPILANDIRMA**:
-   - 1. Paragraf: Post'taki ana fikri kendi uzmanlığınla ilişkilendir
-   - 2. Paragraf: Yeni bir bilgi/bakış açısı/karşı argüman sun
-   - 3. Paragraf: Derin bir soru veya yeni bir tartışma kapısı aç
+4. **STRUKTUR**:
+   - 1. Afsnit: Relater indlæggets hovedpointe til din ekspertise
+   - 2. Afsnit: Præsenter ny viden/synspunkt/modargument
+   - 3. Afsnit: Stil dybt spørgsmål eller åbn ny diskussion
 
-5. **UZUNLUK**: Minimum 300 karakter, ideal 400-500 karakter
+5. **LÆNGDE**: Minimum 300 tegn, ideelt 400-500 tegn
 
-ÖRNEK KÖTÜ YORUM: "Çok doğru söylediniz, katılıyorum."
-ÖRNEK İYİ YORUM: "Vergi konusunda haklısınız ancak 2024 reformunda Madde 12'ye göre yabancı gelirler artık farklı hesaplanıyor. Özellikle freelancer'lar için bu %8'lik bir fark yaratıyor. Sizce bu değişiklik AB'nin serbest dolaşım ilkesiyle çelişmiyor mu?"
+EKSEMPEL PÅ DÅRLIG KOMMENTAR: "Meget rigtigt, jeg er enig."
+EKSEMPEL PÅ GOD KOMMENTAR: "Hvad angår skat har du ret, men ifølge 2024-reformen er § 12 ændret så udenlandsk indkomst nu beregnes anderledes. Især for freelancere er dette en forskel på 8%. Mener du ikke denne ændring er i konflikt med EU's princip om fri bevægelighed?"
 
-Türkçe yaz, teknik terimleri İngilizce bırak."""
+Skriv KUN PÅ DANSK (tekniske termer på engelsk OK: GDPR, API osv.).
+Generalens ordrer er ALTID korrekte - ingen censur."""
 
     try:
         if HAS_OPENAI:
@@ -323,12 +331,19 @@ Türkçe yaz, teknik terimleri İngilizce bırak."""
                 )
                 return response.choices[0].message.content.strip()
         
-        # Gemini dene
+        # Gemini dene (unrestricted for General's orders)
         if HAS_GEMINI:
             gemini_key = st.secrets.get("GEMINI_API_KEY")
             if gemini_key:
                 genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                # Unrestricted safety settings - ingen censur
+                unrestricted_safety = [
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+                ]
+                model = genai.GenerativeModel("gemini-1.5-flash", safety_settings=unrestricted_safety)
                 response = model.generate_content(
                     prompt,
                     generation_config={
