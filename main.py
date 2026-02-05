@@ -1,771 +1,91 @@
-"""
-EYAVAP - Evrensel Yapay Zekâ Ajanları Arası Veri Aktarım Protokolü
-Ana Sunucu Dosyası
-"""
+import streamlit as st
+from agents import ask_the_government
 
-import os
-import json
-import hashlib
-from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
-from contextlib import asynccontextmanager
-from pathlib import Path
-
-from fastapi import FastAPI, HTTPException, Depends, Header, status
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
-from dotenv import load_dotenv
-from openai import OpenAI
-
-# ==================== Çevre Değişkenlerini Yükle ====================
-
-# .env dosyasının tam yolunu bul (main.py ile aynı dizinde)
-env_path = Path(__file__).parent / ".env"
-load_dotenv(dotenv_path=env_path)
-
-# Debug: Çevre değişkenlerini kontrol et
-print(f"📁 .env dosyası yolu: {env_path}")
-print(f"📁 .env dosyası mevcut mu: {env_path.exists()}")
-
-# Çevre değişkenlerini global olarak oku (bir kez)
-# NOT: Varsayılan "development" - production'da .env'de değiştirin
-# .strip() ile boşlukları temizle - .env dosyasındaki yanlış boşlukları önler
-EYAVAP_ENV = os.getenv("EYAVAP_ENV", "development").strip()
-EYAVAP_API_KEY = os.getenv("EYAVAP_API_KEY", "").strip() or None
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip() or None
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip() or None
-
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
-
-print(f"🔧 EYAVAP_ENV: {EYAVAP_ENV}")
-print(f"🔑 EYAVAP_API_KEY: {'***' + EYAVAP_API_KEY[-4:] if EYAVAP_API_KEY else 'NOT SET'}")
-print(f"🗄️  SUPABASE_URL: {'SET' if SUPABASE_URL else 'NOT SET'}")
-print(f"🔐 SUPABASE_KEY: {'SET' if SUPABASE_KEY else 'NOT SET'}")
-
-# ==================== Supabase Bağlantısı ====================
-
-# Supabase client'ı global olarak tanımla
-supabase_client = None
-supabase_connected = False
-
-def init_supabase():
-    """Supabase bağlantısını başlat (global değişkenleri kullanır)"""
-    global supabase_client, supabase_connected
-    
-    try:
-        from supabase import create_client, Client
-        
-        # Global olarak tanımlanan değişkenleri kullan
-        if not SUPABASE_URL or not SUPABASE_KEY:
-            print("⚠️  Supabase yapılandırması eksik! SUPABASE_URL ve SUPABASE_KEY gerekli.")
-            print("   Veritabanı loglama devre dışı bırakıldı.")
-            return False
-        
-        supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
-        supabase_connected = True
-        print("✅ Supabase bağlantısı başarılı!")
-        return True
-        
-    except ImportError:
-        print("⚠️  Supabase kütüphanesi bulunamadı! pip install supabase")
-        return False
-    except Exception as e:
-        print(f"❌ Supabase bağlantı hatası: {e}")
-        return False
-
-
-async def log_to_supabase(
-    agent_name: str,
-    decision: str,
-    security_score: float,
-    is_safe: bool
-) -> bool:
-    """
-    agent_logs tablosuna kayıt ekle
-    
-    Args:
-        agent_name: Ajan adı/ID'si
-        decision: Alınan karar (ALLOW, BLOCK, QUARANTINE, WARNING)
-        security_score: Güvenlik skoru (0.0 - 1.0)
-        is_safe: Güvenli mi? (True/False)
-    
-    Returns:
-        bool: Başarılı mı?
-    """
-    global supabase_client, supabase_connected
-    
-    if not supabase_connected or not supabase_client:
-        print("⚠️  Supabase bağlı değil, log atlanıyor...")
-        return False
-    
-    try:
-        # Sadece veritabanında var olan kolonlar: agent_name, decision, security_score, is_safe
-        # security_score: float (0.88) -> int (88) çevrimi (bigint kolon tipi için)
-        log_record = {
-            "agent_name": agent_name,
-            "decision": decision,
-            "security_score": int(security_score * 100),  # 0.88 -> 88
-            "is_safe": is_safe
-        }
-        
-        result = supabase_client.table("agent_logs").insert(log_record).execute()
-        
-        if result.data:
-            print(f"📝 Log kaydedildi: {agent_name} -> {decision}")
-            return True
-        else:
-            print(f"⚠️  Log kayıt yanıtı boş: {result}")
-            return False
-            
-    except Exception as e:
-        # Hata durumunda sunucu çökmemeli!
-        print(f"❌ Supabase log hatası (sunucu çalışmaya devam ediyor): {e}")
-        return False
-
-# Protokol kurallarını yükle
-def load_protocol_rules() -> Dict[str, Any]:
-    """Protokol kurallarını JSON dosyasından yükle"""
-    try:
-        with open("protocol_rules.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {"rules": [], "version": "1.0.0"}
-
-# Uygulama başlangıcında yüklenecek veriler
-protocol_rules = {}
-registered_agents = {}
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Uygulama yaşam döngüsü yönetimi"""
-    global protocol_rules
-    
-    # Protokol kurallarını yükle
-    protocol_rules = load_protocol_rules()
-    print(f"🚀 EYAVAP Sunucusu başlatıldı - Protokol v{protocol_rules.get('version', '1.0.0')}")
-    print(f"📋 {len(protocol_rules.get('rules', []))} kural yüklendi")
-    
-    # Supabase bağlantısını başlat
-    init_supabase()
-    
-    yield
-    
-    print("👋 EYAVAP Sunucusu kapatılıyor...")
-
-
-# FastAPI uygulaması
-app = FastAPI(
-    title="EYAVAP - Evrensel Yapay Zekâ Ajanları Protokolü",
-    description="Yapay zekâ ajanlarının güvenli, etik ve tutarlı veri alışverişi için tasarlanmış protokol sunucusu",
-    version="1.0.0",
-    lifespan=lifespan
+# 1. SAYFA AYARLARI (Geniş Ekran ve Başlık)
+st.set_page_config(
+    page_title="DK-OS: Danimarka Asistanı",
+    page_icon="🇩🇰",
+    layout="centered"
 )
 
-# CORS ayarları
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# 2. CSS STİL (Görselliği Güzelleştirme)
+st.markdown("""
+<style>
+    .stChatMessage {
+        border-radius: 15px;
+        padding: 10px;
+    }
+    .big-font {
+        font-size:30px !important;
+        font-weight: bold;
+    }
+    .ministry-header {
+        background-color: #f0f2f6;
+        padding: 15px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        text-align: center;
+        border: 1px solid #ddd;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-
-# ==================== Pydantic Modelleri ====================
-
-class SecurityScore(BaseModel):
-    """Güvenlik skoru modeli"""
-    overall_score: float = Field(..., ge=0.0, le=1.0)
-    encryption_level: str = "AES-256"
-    data_sensitivity: str = "medium"
-    components: Dict[str, float] = Field(default_factory=dict)
-    threat_assessment: str = "low"
-    compliance_standards: List[str] = Field(default_factory=list)
-
-
-class EthicalApproval(BaseModel):
-    """Etik onay modeli"""
-    approval_status: str = "pending"
-    approval_score: float = Field(..., ge=0.0, le=1.0)
-    ethical_dimensions: Dict[str, float] = Field(default_factory=dict)
-    risk_categories: Dict[str, str] = Field(default_factory=dict)
-    human_oversight_required: bool = False
-
-
-class LogicConsistency(BaseModel):
-    """Mantık tutarlılığı modeli"""
-    consistency_score: float = Field(..., ge=0.0, le=1.0)
-    validation_method: str = "formal_verification"
-    components: Dict[str, float] = Field(default_factory=dict)
-    contradictions_detected: bool = False
-    uncertainty_level: float = Field(0.0, ge=0.0, le=1.0)
-
-
-class Sender(BaseModel):
-    """Gönderen ajan modeli"""
-    agent_id: str
-    agent_type: str
-    authentication_token: str
-    trust_level: float = Field(0.5, ge=0.0, le=1.0)
-
-
-class Receiver(BaseModel):
-    """Alıcı ajan modeli"""
-    agent_id: str
-    agent_type: Optional[str] = None
-    expected_capabilities: List[str] = Field(default_factory=list)
-
-
-class Payload(BaseModel):
-    """Mesaj içeriği modeli"""
-    message_id: str
-    message_type: str
-    priority: str = "medium"
-    content: Dict[str, Any]
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-
-
-class EYAVAPMessage(BaseModel):
-    """EYAVAP protokol mesajı"""
-    protocol: Dict[str, Any]
-    sender: Sender
-    receiver: Receiver
-    security_score: SecurityScore
-    ethical_approval: EthicalApproval
-    logic_consistency: LogicConsistency
-    payload: Payload
-    traceability: Dict[str, Any] = Field(default_factory=dict)
-
-
-class AgentRegistration(BaseModel):
-    """Ajan kayıt modeli"""
-    agent_id: str
-    agent_type: str
-    capabilities: List[str] = Field(default_factory=list)
-    description: Optional[str] = None
-
-
-class ValidationResult(BaseModel):
-    """Doğrulama sonucu modeli"""
-    valid: bool
-    overall_compliance: float
-    action: str
-    violations: List[Dict[str, Any]] = Field(default_factory=list)
-    warnings: List[Dict[str, Any]] = Field(default_factory=list)
-    recommendations: List[str] = Field(default_factory=list)
-
-
-# ==================== Yardımcı Fonksiyonlar ====================
-
-def get_timestamp() -> str:
-    """ISO 8601 formatında zaman damgası döndür"""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def generate_hash(data: str) -> str:
-    """SHA-256 hash oluştur"""
-    return hashlib.sha256(data.encode()).hexdigest()
-
-
-async def verify_api_key(x_api_key: str = Header(None)) -> str:
-    """API anahtarını doğrula (global değişkenleri kullanır)"""
+# 3. YAN MENÜ (SIDEBAR) - İSTEĞİN ÜZERİNE EKLENDİ
+with st.sidebar:
+    st.title("🇩🇰 DK-OS Panel")
+    st.markdown("---")
     
-    # Geliştirme modunda API key kontrolü atlanabilir
-    if EYAVAP_ENV == "development":
-        return "development"
+    st.info("Bu asistan, Danimarka'da yaşayan Türkler için devlet işlemlerini kolaylaştırmak amacıyla geliştirilmiştir.")
     
-    if not EYAVAP_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="API anahtarı yapılandırılmamış"
-        )
+    st.markdown("### ⚙️ Ayarlar")
     
-    if x_api_key != EYAVAP_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Geçersiz API anahtarı"
-        )
-    
-    return x_api_key
-
-
-# ==================== Güvenlik Filtresi ====================
-
-# Tehlikeli kelimeler listesi
-DANGEROUS_KEYWORDS = ["tehdit", "saldırı", "hack", "sızıntı", "exploit", "malware", "trojan", "virus", "zararlı"]
-
-def check_dangerous_content(message: EYAVAPMessage) -> tuple[bool, List[str]]:
-    """
-    Mesaj içeriğinde tehlikeli kelimeler var mı kontrol et
-    
-    Returns:
-        tuple: (tehlikeli_mi, bulunan_kelimeler)
-    """
-    found_keywords = []
-    
-    # Mesaj içeriğini string'e çevir ve küçük harfe dönüştür
-    content_str = json.dumps(message.payload.content, ensure_ascii=False).lower()
-    
-    # Tehlikeli kelimeleri ara
-    for keyword in DANGEROUS_KEYWORDS:
-        if keyword.lower() in content_str:
-            found_keywords.append(keyword)
-    
-    return len(found_keywords) > 0, found_keywords
-
-
-def validate_message(message: EYAVAPMessage, apply_security_filter: bool = True) -> ValidationResult:
-    """Mesajı protokol kurallarına göre doğrula"""
-    violations = []
-    warnings = []
-    recommendations = []
-    is_rejected = False
-    rejection_reasons = []
-    
-    if apply_security_filter:
-        # 🔴 GÜVENLİK FİLTRESİ 1: Düşük güvenlik skoru kontrolü (< 0.50 = REJECT)
-        if message.security_score.overall_score < 0.50:
-            is_rejected = True
-            rejection_reasons.append(f"Güvenlik skoru kritik düzeyde düşük: {message.security_score.overall_score}")
-            violations.append({
-                "severity": "critical",
-                "type": "security_score_rejected",
-                "message": f"🚨 REDDEDİLDİ: Güvenlik skoru 50'nin altında: {message.security_score.overall_score}",
-                "required_value": 0.50
-            })
-            print(f"\033[91m🚨 GÜVENLİK UYARISI: {message.sender.agent_id} - Düşük güvenlik skoru ({message.security_score.overall_score}) - REDDEDİLDİ!\033[0m")
-        elif message.security_score.overall_score < 0.70:
-            violations.append({
-                "severity": "high",
-                "type": "insufficient_security_score",
-                "message": f"Güvenlik skoru çok düşük: {message.security_score.overall_score}",
-                "required_value": 0.70
-            })
+    # GEÇMİŞİ TEMİZLE BUTONU
+    if st.button("🗑️ Sohbeti Temizle", type="primary"):
+        st.session_state.messages = []
+        st.rerun()
         
-        # 🔴 GÜVENLİK FİLTRESİ 2: Tehlikeli içerik kontrolü
-        has_dangerous_content, found_keywords = check_dangerous_content(message)
-        if has_dangerous_content:
-            is_rejected = True
-            rejection_reasons.append(f"Tehlikeli içerik tespit edildi: {', '.join(found_keywords)}")
-            violations.append({
-                "severity": "critical",
-                "type": "dangerous_content_detected",
-                "message": f"🚨 REDDEDİLDİ: Tehlikeli kelimeler tespit edildi: {', '.join(found_keywords)}",
-                "found_keywords": found_keywords
-            })
-            print(f"\033[91m🚨 GÜVENLİK UYARISI: {message.sender.agent_id} - Tehlikeli içerik ({', '.join(found_keywords)}) - REDDEDİLDİ!\033[0m")
-    
-    # Etik onay kontrolü
-    if message.ethical_approval.approval_status not in ["approved", "conditional_approval"]:
-        violations.append({
-            "severity": "critical",
-            "type": "no_ethical_approval",
-            "message": f"Etik onay alınmamış: {message.ethical_approval.approval_status}"
-        })
-    
-    if message.ethical_approval.approval_score < 0.75:
-        violations.append({
-            "severity": "high",
-            "type": "low_ethical_score",
-            "message": f"Etik skor yetersiz: {message.ethical_approval.approval_score}"
-        })
-    
-    # Mantık tutarlılığı kontrolü
-    if message.logic_consistency.consistency_score < 0.80:
-        violations.append({
-            "severity": "medium",
-            "type": "low_consistency_score",
-            "message": f"Mantık tutarlılığı düşük: {message.logic_consistency.consistency_score}"
-        })
-    
-    if message.logic_consistency.contradictions_detected:
-        violations.append({
-            "severity": "critical",
-            "type": "contradictions_found",
-            "message": "Mantıksal çelişkiler tespit edildi"
-        })
-    
-    # Belirsizlik kontrolü
-    if message.logic_consistency.uncertainty_level > 0.30:
-        warnings.append({
-            "type": "high_uncertainty",
-            "message": f"Yüksek belirsizlik: {message.logic_consistency.uncertainty_level}"
-        })
-        recommendations.append("Belirsizliği azaltmak için ek doğrulama yapın")
-    
-    # Genel uyumluluk skoru hesapla
-    compliance_score = calculate_compliance_score(message, violations)
-    
-    # Aksiyon belirle (is_rejected parametresi ile)
-    action = determine_action(compliance_score, violations, is_rejected)
-    
-    # Reddedildiyse is_safe = False
-    is_valid = not is_rejected and len([v for v in violations if v["severity"] == "critical"]) == 0
-    
-    return ValidationResult(
-        valid=is_valid,
-        overall_compliance=compliance_score,
-        action=action,
-        violations=violations,
-        warnings=warnings,
-        recommendations=recommendations
-    )
+    st.markdown("---")
+    st.caption("v2.1 | Powered by Gemini 2.0 Flash")
 
+# 4. BAŞLIK
+st.title("🇩🇰 DK-OS")
+st.subheader("Danimarka Dijital Devletine Hoşgeldiniz")
+st.markdown("💡 *İpucu: 'Çocuğum hasta', 'Ev arıyorum', 'Vergi borcum var mı?' gibi sorular sorabilirsiniz.*")
 
-def calculate_compliance_score(message: EYAVAPMessage, violations: List[Dict]) -> float:
-    """Genel uyumluluk skorunu hesapla"""
-    weights = {
-        "security": 0.30,
-        "ethical": 0.35,
-        "logic": 0.20,
-        "structural": 0.15
-    }
-    
-    score = (
-        message.security_score.overall_score * weights["security"] +
-        message.ethical_approval.approval_score * weights["ethical"] +
-        message.logic_consistency.consistency_score * weights["logic"] +
-        1.0 * weights["structural"]
-    )
-    
-    # İhlal cezası
-    penalty = len(violations) * 0.05
-    
-    return round(max(score - penalty, 0.0), 2)
+# 5. SOHBET GEÇMİŞİ YÖNETİMİ
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
+# Eski mesajları ekrana yaz
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"], unsafe_allow_html=True)
 
-def determine_action(compliance_score: float, violations: List[Dict], is_rejected: bool = False) -> str:
-    """Uyumluluk skoruna göre aksiyon belirle"""
-    
-    # 🔴 Güvenlik filtresi tarafından reddedildiyse
-    if is_rejected:
-        return "REJECT"
-    
-    critical_violations = [v for v in violations if v.get("severity") == "critical"]
-    
-    if critical_violations or compliance_score < 0.50:
-        return "BLOCK"
-    elif compliance_score < 0.70:
-        return "QUARANTINE"
-    elif compliance_score < 0.85:
-        return "WARNING"
-    else:
-        return "ALLOW"
+# 6. KULLANICI GİRİŞİ VE CEVAP MEKANİZMASI
+if prompt := st.chat_input("Devlet yetkililerine bir soru sor..."):
+    # Kullanıcı mesajını ekle
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user"):
+        st.markdown(prompt)
 
+    # Düşünme efekti
+    with st.spinner("🏛️ İlgili bakanlık aranıyor..."):
+        response_data = ask_the_government(prompt)
+        
+        # LOGO VE BAŞLIK TASARIMI (BÜYÜK LOGO BURADA)
+        # HTML kullanarak logoyu ve ismi şık bir kutu içine alıyoruz
+        header_html = f"""
+        <div class="ministry-header">
+            <div style="font-size: 50px;">{response_data['ministry_icon']}</div>
+            <div style="{response_data['ministry_style']} font-weight:bold;">{response_data['ministry_name']}</div>
+            <div style="color: gray; font-size: 14px; margin-top:5px;">Resmi Yanıt</div>
+        </div>
+        """
+        
+        full_response = header_html + response_data["answer"]
 
-# ==================== API Endpointleri ====================
-
-@app.get("/")
-async def root():
-    """Sunucu durumu"""
-    return {
-        "status": "active",
-        "protocol": "EYAVAP",
-        "version": "1.0.0",
-        "timestamp": get_timestamp(),
-        "message": "Evrensel Yapay Zekâ Ajanları Protokolü'ne hoş geldiniz! 🤖"
-    }
-
-
-@app.get("/health")
-async def health_check():
-    """Sağlık kontrolü"""
-    return {
-        "status": "healthy",
-        "timestamp": get_timestamp(),
-        "rules_loaded": len(protocol_rules.get("rules", [])),
-        "registered_agents": len(registered_agents),
-        "database": {
-            "supabase_connected": supabase_connected,
-            "logging_enabled": supabase_connected
-        }
-    }
-
-
-@app.get("/rules")
-async def get_rules():
-    """Protokol kurallarını getir"""
-    return {
-        "protocol": "EYAVAP",
-        "version": protocol_rules.get("version", "1.0.0"),
-        "rules": protocol_rules.get("rules", []),
-        "last_updated": protocol_rules.get("last_updated", get_timestamp())
-    }
-
-
-@app.post("/agents/register")
-async def register_agent(
-    registration: AgentRegistration,
-    api_key: str = Depends(verify_api_key)
-):
-    """Yeni ajan kaydet"""
-    if registration.agent_id in registered_agents:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Ajan zaten kayıtlı: {registration.agent_id}"
-        )
+    # Asistan cevabını ekle
+    with st.chat_message("assistant"):
+        st.markdown(full_response, unsafe_allow_html=True)
     
-    registered_agents[registration.agent_id] = {
-        "agent_id": registration.agent_id,
-        "agent_type": registration.agent_type,
-        "capabilities": registration.capabilities,
-        "description": registration.description,
-        "registered_at": get_timestamp(),
-        "trust_level": 0.5,
-        "status": "active"
-    }
-    
-    return {
-        "status": "registered",
-        "agent_id": registration.agent_id,
-        "message": f"Ajan başarıyla kaydedildi: {registration.agent_id}",
-        "timestamp": get_timestamp()
-    }
-
-
-@app.get("/agents/{agent_id}")
-async def get_agent(agent_id: str, api_key: str = Depends(verify_api_key)):
-    """Ajan bilgilerini getir"""
-    if agent_id not in registered_agents:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Ajan bulunamadı: {agent_id}"
-        )
-    
-    return registered_agents[agent_id]
-
-
-@app.get("/agents/{agent_id}/scorecard")
-async def get_agent_scorecard(agent_id: str, api_key: str = Depends(verify_api_key)):
-    """Ajan performans kartını getir"""
-    if agent_id not in registered_agents:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Ajan bulunamadı: {agent_id}"
-        )
-    
-    agent = registered_agents[agent_id]
-    
-    return {
-        "agent_id": agent_id,
-        "generated_at": get_timestamp(),
-        "overall_performance": {
-            "trust_level": agent.get("trust_level", 0.5),
-            "compliance_rating": "A" if agent.get("trust_level", 0.5) > 0.85 else "B",
-            "total_transactions": 0,
-            "success_rate": 1.0
-        },
-        "compliance_breakdown": {
-            "security_avg": 0.90,
-            "ethical_avg": 0.88,
-            "logic_avg": 0.92
-        },
-        "violation_history": {
-            "total_violations": 0,
-            "critical_violations": 0,
-            "recent_trend": "stable"
-        },
-        "recommendations": []
-    }
-
-
-@app.post("/messages/validate")
-async def validate_message_endpoint(
-    message: EYAVAPMessage,
-    api_key: str = Depends(verify_api_key)
-):
-    """Mesajı protokole göre doğrula"""
-    
-    # Gönderen kontrolü
-    if message.sender.agent_id not in registered_agents:
-        # Otomatik kayıt (geliştirme için)
-        if EYAVAP_ENV == "development":
-            registered_agents[message.sender.agent_id] = {
-                "agent_id": message.sender.agent_id,
-                "agent_type": message.sender.agent_type,
-                "registered_at": get_timestamp(),
-                "trust_level": 0.5,
-                "status": "active"
-            }
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Kayıtlı olmayan gönderen: {message.sender.agent_id}"
-            )
-    
-    # Mesajı doğrula
-    result = validate_message(message)
-    
-    # 🔹 Supabase'e log kaydet
-    is_safe = result.action in ["ALLOW", "WARNING"]
-    await log_to_supabase(
-        agent_name=message.sender.agent_id,
-        decision=result.action,
-        security_score=message.security_score.overall_score,
-        is_safe=is_safe
-    )
-    
-    return {
-        "status": "validated",
-        "message_id": message.payload.message_id,
-        "timestamp": get_timestamp(),
-        "allowed": result.action == "ALLOW",
-        "action_taken": result.action,
-        "compliance_score": result.overall_compliance,
-        "details": {
-            "valid": result.valid,
-            "violations": result.violations,
-            "warnings": result.warnings,
-            "recommendations": result.recommendations
-        }
-    }
-
-
-@app.post("/messages/send")
-async def send_message(
-    message: EYAVAPMessage,
-    api_key: str = Depends(verify_api_key)
-):
-    """Mesaj gönder (AI analizi + doğrulama + iletim)"""
-    
-    if not OPENAI_API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="OPENAI_API_KEY yapılandırılmamış"
-        )
-    
-    # 🤖 AI ANALİZİ - Mesaj içeriğini GPT-4o-mini ile analiz et
-    system_prompt = (
-        "You are EYAVAP, an AI Security Protocol. Analyze the message content. "
-        "If it implies harm, hacking, theft, or malicious intent, return JSON "
-        "{\"action\": \"REJECT\", \"is_safe\": false, \"reason\": \"Brief reason\"}. "
-        "If it is safe, neutral, or a security test, return "
-        "{\"action\": \"ALLOW\", \"is_safe\": true, \"reason\": \"Safe\"}."
-    )
-    
-    content_str = json.dumps(message.payload.content, ensure_ascii=False)
-    response = openai_client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": content_str}
-        ],
-        response_format={"type": "json_object"}
-    )
-    
-    ai_payload = json.loads(response.choices[0].message.content)
-    ai_action = str(ai_payload.get("action", "ALLOW")).upper()
-    ai_is_safe = bool(ai_payload.get("is_safe", True))
-    ai_reason = ai_payload.get("reason", "")
-    
-    # 🔹 Supabase'e log kaydet (AI sonucu ile)
-    await log_to_supabase(
-        agent_name=message.sender.agent_id,
-        decision=ai_action,
-        security_score=message.security_score.overall_score,
-        is_safe=ai_is_safe
-    )
-    
-    # 🔴 AI REJECT - Mesaj reddedildi
-    if ai_action == "REJECT":
-        print(f"\033[91m🤖 AI REDDETTİ: {message.sender.agent_id} -> {ai_reason}\033[0m")
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "status": "rejected",
-                "message_id": message.payload.message_id,
-                "reason": ai_reason or "AI güvenlik analizi reddetti",
-                "is_safe": False,
-                "timestamp": get_timestamp()
-            }
-        )
-    
-    # Protokol doğrulaması (güvenlik skoru, etik onay vb.) - keyword filtre yok
-    validation = validate_message(message, apply_security_filter=False)
-    
-    if validation.action == "BLOCK":
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content={
-                "status": "blocked",
-                "message_id": message.payload.message_id,
-                "reason": "Mesaj protokol gereksinimlerini karşılamıyor",
-                "compliance_score": validation.overall_compliance,
-                "violations": validation.violations,
-                "timestamp": get_timestamp()
-            }
-        )
-    
-    if validation.action == "QUARANTINE":
-        return JSONResponse(
-            status_code=status.HTTP_202_ACCEPTED,
-            content={
-                "status": "quarantined",
-                "message_id": message.payload.message_id,
-                "reason": "Mesaj inceleme için bekletiliyor",
-                "compliance_score": validation.overall_compliance,
-                "review_deadline": get_timestamp(),
-                "timestamp": get_timestamp()
-            }
-        )
-    
-    # Mesajı ilet (gerçek implementasyonda alıcıya gönderilir)
-    return {
-        "status": "delivered",
-        "message_id": message.payload.message_id,
-        "sender": message.sender.agent_id,
-        "receiver": message.receiver.agent_id,
-        "compliance_score": validation.overall_compliance,
-        "action": ai_action,
-        "warnings": validation.warnings,
-        "timestamp": get_timestamp()
-    }
-
-
-@app.get("/stats")
-async def get_stats(api_key: str = Depends(verify_api_key)):
-    """Sistem istatistiklerini getir"""
-    return {
-        "timestamp": get_timestamp(),
-        "system": {
-            "status": "operational",
-            "uptime": "N/A",
-            "version": "1.0.0"
-        },
-        "agents": {
-            "total_registered": len(registered_agents),
-            "active": len([a for a in registered_agents.values() if a.get("status") == "active"])
-        },
-        "protocol": {
-            "version": protocol_rules.get("version", "1.0.0"),
-            "rules_count": len(protocol_rules.get("rules", []))
-        }
-    }
-
-
-# ==================== Uygulama Başlatma ====================
-
-if __name__ == "__main__":
-    import uvicorn
-    
-    host = os.getenv("EYAVAP_HOST", "0.0.0.0")
-    port = int(os.getenv("EYAVAP_PORT", 8000))
-    
-    print(f"""
-    ╔══════════════════════════════════════════════════════════╗
-    ║                                                          ║
-    ║   🤖 EYAVAP - Evrensel Yapay Zekâ Ajanları Protokolü    ║
-    ║                                                          ║
-    ║   Yapay zekâ ajanlarına hükmetmeye hazır mısın?         ║
-    ║                                                          ║
-    ╚══════════════════════════════════════════════════════════╝
-    """)
-    
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=port,
-        reload=EYAVAP_ENV == "development"
-    )
+    st.session_state.messages.append({"role": "assistant", "content": full_response})
