@@ -1,4 +1,4 @@
-# GUNCEL VERSIYON: 2.0 FLASH PRO - DANIMARKA
+# V3.0 PRO SURUM - FINAL
 import google.generativeai as genai
 import streamlit as st
 import time
