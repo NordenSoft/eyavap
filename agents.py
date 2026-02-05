@@ -1,90 +1,56 @@
 import google.generativeai as genai
 import streamlit as st
-import time
 
-# --- 1. GÜVENLİ BAĞLANTI ---
+# --- API YAPILANDIRMASI ---
 def configure_genai():
-    api_key = None
-    try:
-        # Önce tek satırlık anahtara bak
-        if "GEMINI_API_KEY" in st.secrets:
-            api_key = st.secrets["GEMINI_API_KEY"]
-        # Yoksa [gemini] kutusuna bak
-        elif "gemini" in st.secrets and "api_key" in st.secrets["gemini"]:
-            api_key = st.secrets["gemini"]["api_key"]
-            
-        if api_key:
-            genai.configure(api_key=api_key)
-            return True
-        else:
-            return False
-    except Exception as e:
-        st.error(f"⚠️ API Bağlantı Hatası: {e}")
-        return False
-
-# Sistemi başlat
-is_connected = configure_genai()
-
-# --- 2. GÜNCEL MODEL LİSTESİ (DÜZELTİLDİ) ---
-def generate_with_fallback(prompt):
-    if not is_connected:
-        class ErrorResponse:
-            text = "⚠️ API Anahtarı bulunamadı. Lütfen Secrets ayarlarını kontrol et."
-        return ErrorResponse()
-
-    # İŞTE BURASI DEĞİŞTİ: Sadece çalışan 'Flash' modelleri
-    candidate_models = [
-        'gemini-1.5-flash',       # En hızlı ve kararlı olan
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-pro'          # Yedek güç
-    ]
+    # Hem GEMINI_API_KEY hem de [gemini] altındaki api_key'i kontrol eder
+    api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("gemini", {}).get("api_key")
     
-    last_error = ""
-    for model_name in candidate_models:
-        try:
-            model = genai.GenerativeModel(model_name)
-            response = model.generate_content(prompt)
-            return response
-        except Exception as e:
-            last_error = str(e)
-            time.sleep(0.5)
-            continue
-            
-    # Eğer hepsi hata verirse:
-    class FakeResponse:
-        text = f"⚠️ Tora sunucuya ulaşamadı. (Hata: {last_error})"
-    return FakeResponse()
+    if api_key:
+        genai.configure(api_key=api_key)
+        return True
+    return False
 
-# --- 3. BAKANLIKLAR (STANDART) ---
-MINISTRIES = {
-    "SAGLIK": {"name": "🏥 Ministry of Health", "icon": "🏥", "style": "color: #e74c3c;", "role": "Senior Doctor.", "context": "Topics: GP, Yellow Card, 1813."},
-    "EGITIM": {"name": "🎓 Ministry of Education", "icon": "🎓", "style": "color: #3498db;", "role": "Student Advisor.", "context": "Topics: SU, ECTS, Dorms."},
-    "KARIYER": {"name": "💼 Ministry of Employment", "icon": "💼", "style": "color: #2c3e50;", "role": "Union Expert.", "context": "Topics: Dagpenge, A-kasse, Job contracts."},
-    "FINANS": {"name": "💰 Ministry of Taxation", "icon": "💰", "style": "color: #f1c40f;", "role": "Tax Expert.", "context": "Topics: Fradrag, Skat."},
-    "EMLAK": {"name": "🏠 Ministry of Housing", "icon": "🏠", "style": "color: #e67e22;", "role": "Tenant Defender.", "context": "Topics: Rent control, Deposit disputes."},
-    "HUKUK": {"name": "⚖️ Ministry of Justice", "icon": "⚖️", "style": "color: #8e44ad;", "role": "Immigration Lawyer.", "context": "Topics: Visa, Citizenship."},
-    "SOSYAL": {"name": "🎉 Ministry of Culture", "icon": "🎉", "style": "color: #27ae60;", "role": "Local Guide.", "context": "Topics: Events, Hygge, Life in DK."}
-}
-
+# --- ANA CEVAP FONKSİYONU ---
 def ask_the_government(user_query):
-    # --- ROUTER ---
-    router_prompt = f"Categorize query: '{user_query}' into: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL. Output ONLY code."
-    try:
-        router_res = generate_with_fallback(router_prompt)
-        category_code = router_res.text.strip().upper().replace(".", "")
-    except:
-        category_code = "SOSYAL"
+    if not configure_genai():
+        return {"answer": "⚠️ API Key hatası! Secrets kısmını kontrol edin.", "ministry_name": "Sistem", "ministry_icon": "⚠️"}
 
-    ministry = MINISTRIES.get(category_code, MINISTRIES["SOSYAL"])
+    # DAHA ÖNCE ÇALIŞAN MODEL İSMİ: "models/gemini-1.5-flash"
+    model = genai.GenerativeModel("models/gemini-1.5-flash")
+
+    # Bakanlık Belirleme (Router)
+    router_prompt = f"Categorize this Danish-related query into one: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL. Query: {user_query}. Output ONLY the category name."
     
-    # --- AGENT ---
-    agent_prompt = f"ROLE: {ministry['role']} context: {ministry['context']} Query: {user_query} Answer in Turkish. Be helpful and concise."
-    final_res = generate_with_fallback(agent_prompt)
-    
-    return {
-        "ministry_name": ministry['name'],
-        "ministry_icon": ministry['icon'],
-        "ministry_style": ministry['style'],
-        "answer": final_res.text,
-        "category": category_code
+    try:
+        role_res = model.generate_content(router_prompt)
+        category = role_res.text.strip().upper()
+    except:
+        category = "SOSYAL"
+
+    # Bakanlık Bilgileri
+    MINISTRIES = {
+        "SAGLIK": {"name": "🏥 Ministry of Health", "role": "Danimarka sağlık sistemi uzmanı."},
+        "EGITIM": {"name": "🎓 Ministry of Education", "role": "Danimarka eğitim ve SU uzmanı."},
+        "KARIYER": {"name": "💼 Ministry of Employment", "role": "İş hukuku ve A-kasse uzmanı."},
+        "FINANS": {"name": "💰 Ministry of Taxation", "role": "Skat ve vergi uzmanı."},
+        "EMLAK": {"name": "🏠 Ministry of Housing", "role": "Kira hukuku uzmanı."},
+        "HUKUK": {"name": "⚖️ Ministry of Justice", "role": "Göçmenlik ve vize avukatı."},
+        "SOSYAL": {"name": "🎉 Ministry of Culture", "role": "Danimarka sosyal yaşam rehberi."}
     }
+
+    m_info = MINISTRIES.get(category, MINISTRIES["SOSYAL"])
+
+    # Final Cevap
+    agent_prompt = f"Sen {m_info['role']} bir asistsansın. Soru: {user_query}. Türkçe cevap ver. Kısa ve net ol."
+    
+    try:
+        final_res = model.generate_content(agent_prompt)
+        return {
+            "answer": final_res.text,
+            "ministry_name": m_info['name'],
+            "ministry_icon": m_info['name'].split()[0],
+            "ministry_style": "color: white;"
+        }
+    except Exception as e:
+        return {"answer": f"Bir hata oluştu: {str(e)}", "ministry_name": "Hata", "ministry_icon": "❌"}
