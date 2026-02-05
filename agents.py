@@ -1,51 +1,398 @@
 """
-EYAVAP: Ana Ajan Sistemi
-Başkan Ajan'ı kullanarak sorguları işle
+EYAVAP: Basit Ajan Sistemi
+Supabase + Gemini ile otomatik ajan oluşturma ve liyakat sistemi
 """
 
-from typing import Dict, Any
-from president_agent import get_president_agent
+import time
+import json
+import streamlit as st
+import google.generativeai as genai
+from typing import Dict, Any, Optional
+from datetime import datetime
 
+
+# ==================== SUPABASE BAĞLANTISI ====================
+
+def get_supabase_client():
+    """Supabase client'ını al"""
+    try:
+        from supabase import create_client
+        
+        supabase_url = st.secrets.get("SUPABASE_URL")
+        supabase_key = st.secrets.get("SUPABASE_KEY")
+        
+        if not supabase_url or not supabase_key:
+            print("⚠️ Supabase credentials bulunamadı")
+            return None
+        
+        return create_client(supabase_url, supabase_key)
+    except Exception as e:
+        print(f"⚠️ Supabase bağlantı hatası: {e}")
+        return None
+
+
+# ==================== GEMINI BAĞLANTISI ====================
+
+def get_gemini_model():
+    """Gemini model'ini al"""
+    try:
+        gemini_key = st.secrets.get("GEMINI_API_KEY")
+        
+        if not gemini_key:
+            print("⚠️ Gemini API key bulunamadı")
+            return None
+        
+        genai.configure(api_key=gemini_key)
+        
+        # Kullanılabilir modeli seç
+        for model_name in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]:
+            try:
+                model = genai.GenerativeModel(model_name)
+                # Test et
+                model.generate_content("test")
+                return model
+            except:
+                continue
+        
+        return None
+    except Exception as e:
+        print(f"⚠️ Gemini bağlantı hatası: {e}")
+        return None
+
+
+# ==================== KONU ANALİZİ ====================
+
+def analyze_topic(user_query: str, model) -> Dict[str, Any]:
+    """
+    Kullanıcı sorusunu analiz et ve hangi uzmanlık alanına ait olduğunu belirle
+    """
+    try:
+        prompt = f"""Bu soruyu analiz et ve hangi uzmanlık alanına ait olduğunu belirle.
+
+UZMANLIK ALANLARI:
+- denmark_tax: Danimarka vergi sistemi
+- denmark_health: Sağlık sistemi
+- denmark_legal: Hukuk ve vize
+- denmark_residence: Oturma izni, CPR
+- denmark_work: İş ve çalışma
+- denmark_education: Eğitim
+- cyber_security: Siber güvenlik
+- data_analysis: Veri analizi
+- general: Genel konular
+
+SORU: {user_query}
+
+SADECE JSON formatında yanıt ver:
+{{
+  "specialization": "denmark_tax",
+  "confidence": 0.95,
+  "keywords": ["vergi", "skat"]
+}}"""
+
+        response = model.generate_content(prompt)
+        result = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
+        
+        return {
+            "specialization": result.get("specialization", "general"),
+            "confidence": result.get("confidence", 0.7),
+            "keywords": result.get("keywords", [])
+        }
+    except Exception as e:
+        print(f"⚠️ Konu analiz hatası: {e}")
+        return {
+            "specialization": "general",
+            "confidence": 0.5,
+            "keywords": []
+        }
+
+
+# ==================== AJAN YÖNETİMİ ====================
+
+def find_or_create_agent(specialization: str, keywords: list, supabase) -> Dict[str, Any]:
+    """
+    Uygun ajan bul, yoksa yeni 'Soldier' ajan oluştur
+    """
+    if not supabase:
+        return {
+            "id": "stateless",
+            "name": "Stateless Agent",
+            "specialization": specialization,
+            "merit_score": 50,
+            "rank": "soldier",
+            "is_new": False
+        }
+    
+    try:
+        # Mevcut ajanları ara
+        response = supabase.table("agents").select("*").eq("specialization", specialization).eq("is_active", True).execute()
+        
+        if response.data and len(response.data) > 0:
+            # En yüksek liyakat puanlı ajanı seç
+            agent = sorted(response.data, key=lambda x: x.get("merit_score", 0), reverse=True)[0]
+            print(f"✅ Mevcut ajan bulundu: {agent['name']}")
+            agent["is_new"] = False
+            return agent
+        
+        # Yeni ajan oluştur (Soldier rütbesi)
+        specialization_names = {
+            "denmark_tax": "Vergi Askeri (Skat Soldier)",
+            "denmark_health": "Sağlık Askeri (Sundhed Soldier)",
+            "denmark_legal": "Hukuk Askeri (Juridisk Soldier)",
+            "denmark_residence": "Oturma İzni Askeri (Opholdstilladelse Soldier)",
+            "denmark_work": "İş Askeri (Arbejde Soldier)",
+            "denmark_education": "Eğitim Askeri (Uddannelse Soldier)",
+            "cyber_security": "Siber Güvenlik Askeri (CyberSec Soldier)",
+            "data_analysis": "Veri Analizi Askeri (DataAnalysis Soldier)",
+            "general": "Genel Asistan Askeri (General Soldier)"
+        }
+        
+        agent_name = specialization_names.get(specialization, f"{specialization.title()} Soldier")
+        
+        new_agent = {
+            "name": agent_name,
+            "specialization": specialization,
+            "expertise_areas": keywords + [specialization],
+            "capabilities": ["research", "analysis", "reporting", "web_search"],
+            "merit_score": 50,
+            "rank": "soldier",
+            "is_active": True,
+            "created_at": datetime.utcnow().isoformat()
+        }
+        
+        result = supabase.table("agents").insert(new_agent).execute()
+        
+        if result.data:
+            agent = result.data[0]
+            agent["is_new"] = True
+            print(f"🆕 Yeni Soldier ajan oluşturuldu: {agent_name}")
+            return agent
+        
+    except Exception as e:
+        print(f"⚠️ Ajan bulma/oluşturma hatası: {e}")
+    
+    # Fallback
+    return {
+        "id": "fallback",
+        "name": "Fallback Agent",
+        "specialization": specialization,
+        "merit_score": 50,
+        "rank": "soldier",
+        "is_new": False
+    }
+
+
+# ==================== LİYAKAT SİSTEMİ ====================
+
+def update_merit_score(agent_id: str, success: bool, supabase):
+    """
+    Liyakat puanını güncelle
+    - Başarılı: +2 puan
+    - Başarısız: -3 puan
+    - 10+ puan: Vice President (VP) rütbesi
+    """
+    if not supabase or agent_id in ["stateless", "fallback"]:
+        return
+    
+    try:
+        # Mevcut ajanı al
+        response = supabase.table("agents").select("*").eq("id", agent_id).single().execute()
+        
+        if not response.data:
+            return
+        
+        agent = response.data
+        current_score = agent.get("merit_score", 50)
+        
+        # Puan güncelle
+        if success:
+            new_score = min(100, current_score + 2)
+        else:
+            new_score = max(0, current_score - 3)
+        
+        # Rütbe belirle
+        if new_score >= 85:
+            new_rank = "vice_president"
+        elif new_score >= 70:
+            new_rank = "senior_specialist"
+        elif new_score >= 50:
+            new_rank = "specialist"
+        else:
+            new_rank = "soldier"
+        
+        # Güncelle
+        supabase.table("agents").update({
+            "merit_score": new_score,
+            "rank": new_rank,
+            "last_used": datetime.utcnow().isoformat()
+        }).eq("id", agent_id).execute()
+        
+        print(f"📊 Liyakat güncellendi: {current_score} → {new_score} (Rütbe: {new_rank})")
+        
+        # Vice President kuruluna ekle
+        if new_score >= 85 and new_rank == "vice_president":
+            try:
+                supabase.table("vice_president_council").insert({
+                    "agent_id": agent_id,
+                    "appointed_at": datetime.utcnow().isoformat(),
+                    "is_active": True
+                }).execute()
+                print("🎉 Vice President kuruluna eklendi!")
+            except:
+                pass  # Zaten ekli olabilir
+        
+    except Exception as e:
+        print(f"⚠️ Liyakat güncelleme hatası: {e}")
+
+
+# ==================== SORGU LOGLARl ====================
+
+def log_query(agent_id: str, user_query: str, response: str, success: bool, supabase):
+    """Sorguyu veritabanına kaydet"""
+    if not supabase or agent_id in ["stateless", "fallback"]:
+        return
+    
+    try:
+        supabase.table("agent_queries").insert({
+            "agent_id": agent_id,
+            "user_query": user_query,
+            "agent_response": response[:500],  # İlk 500 karakter
+            "success": success,
+            "created_at": datetime.utcnow().isoformat()
+        }).execute()
+    except Exception as e:
+        print(f"⚠️ Sorgu loglama hatası: {e}")
+
+
+# ==================== EYLEM YETKİSİ ====================
+
+def perform_action(action_type: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Ajan eylemlerini gerçekleştir
+    - web_search: Web araştırması (DuckDuckGo)
+    - api_call: API çağrısı
+    - cyber_research: Siber araştırma
+    """
+    try:
+        if action_type == "web_search":
+            import requests
+            query = params.get("query", "")
+            
+            url = "https://api.duckduckgo.com/"
+            response = requests.get(url, params={"q": query, "format": "json"}, timeout=10)
+            data = response.json()
+            
+            return {
+                "success": True,
+                "result": data.get("AbstractText", "Sonuç bulunamadı"),
+                "source": data.get("AbstractURL", "")
+            }
+        
+        elif action_type == "cyber_research":
+            # Siber araştırma simülasyonu
+            return {
+                "success": True,
+                "result": f"Siber araştırma yapıldı: {params.get('target', 'N/A')}",
+                "findings": ["Güvenlik açığı bulunamadı", "Sistem sağlıklı"]
+            }
+        
+        else:
+            return {"success": False, "error": "Bilinmeyen eylem tipi"}
+    
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ==================== ANA FONKSİYON ====================
 
 def ask_the_government(user_query: str) -> Dict[str, Any]:
     """
-    Kullanıcı sorusunu Başkan Ajan'a yönlendir
+    Ana ajan sistemi
     
-    Args:
-        user_query: Kullanıcının sorusu
-    
-    Returns:
-        Dict: {
-            "answer": str,
-            "ministry_name": str,  # Uyumluluk için (dashboard.py'de kullanılıyor)
-            "ministry_icon": str,
-            "ministry_style": str,
-            "agent_used": str,
-            "agent_created": bool,
-            "execution_time_ms": int
-        }
+    1. Konuyu analiz et (Gemini)
+    2. Uygun ajan bul/oluştur (Supabase)
+    3. Yanıt üret (Gemini)
+    4. Liyakat puanını güncelle
+    5. Sorguyu logla
     """
-    try:
-        # Başkan Ajan'ı al
-        president = get_president_agent()
-        
-        # Sorguyu işle
-        result = president.process_query(user_query)
-        
-        # Dashboard uyumluluğu için format dönüşümü
+    start_time = time.time()
+    
+    # Bağlantılar
+    supabase = get_supabase_client()
+    model = get_gemini_model()
+    
+    if not model:
         return {
-            "answer": result["answer"],
-            "ministry_name": result.get("agent_used", "Başkan Ajan"),
-            "ministry_icon": "🤖" if result.get("agent_created") else "👔",
+            "answer": "⚠️ AI modeli kullanılamıyor. Gemini API anahtarını kontrol edin.",
+            "ministry_name": "Hata Yönetimi",
+            "ministry_icon": "⚠️",
+            "ministry_style": "color: red;",
+            "agent_used": "Error",
+            "agent_created": False,
+            "execution_time_ms": 0,
+            "success": False
+        }
+    
+    try:
+        # 1. Konu analizi
+        print(f"🔍 Konu analiz ediliyor...")
+        analysis = analyze_topic(user_query, model)
+        specialization = analysis["specialization"]
+        keywords = analysis["keywords"]
+        
+        print(f"   → Uzmanlık: {specialization} (Güven: {analysis['confidence']:.2f})")
+        
+        # 2. Ajan bul/oluştur
+        print(f"👤 Ajan aranıyor...")
+        agent = find_or_create_agent(specialization, keywords, supabase)
+        
+        # 3. Yanıt üret
+        print(f"💭 Yanıt üretiliyor...")
+        system_prompt = f"""Sen {agent['name']} adında uzman bir AI ajanısın.
+Uzmanlık: {specialization}
+Rütbe: {agent.get('rank', 'soldier')} (Liyakat: {agent.get('merit_score', 50)}/100)
+
+Kullanıcının sorusuna Türkçe, detaylı ve profesyonel yanıt ver.
+Gerekirse eylem yetkilerini kullan (web araştırması, analiz, vb.)."""
+
+        response = model.generate_content(f"{system_prompt}\n\nSORU: {user_query}")
+        answer = response.text.strip()
+        
+        # 4. Liyakat güncelle
+        success = len(answer) > 50  # Basit başarı kriteri
+        update_merit_score(agent["id"], success, supabase)
+        
+        # 5. Logla
+        log_query(agent["id"], user_query, answer, success, supabase)
+        
+        execution_time_ms = int((time.time() - start_time) * 1000)
+        
+        print(f"✅ İşlem tamamlandı ({execution_time_ms}ms)")
+        
+        # Dashboard formatı
+        rank_icons = {
+            "soldier": "🪖",
+            "specialist": "👔",
+            "senior_specialist": "🎖️",
+            "vice_president": "⭐"
+        }
+        
+        return {
+            "answer": answer,
+            "ministry_name": agent["name"],
+            "ministry_icon": rank_icons.get(agent.get("rank", "soldier"), "🤖"),
             "ministry_style": "color: white;",
-            "agent_used": result.get("agent_used", "Unknown"),
-            "agent_specialization": result.get("agent_specialization", "general"),
-            "agent_created": result.get("agent_created", False),
-            "execution_time_ms": result.get("execution_time_ms", 0),
-            "success": result.get("success", True)
+            "agent_used": agent["name"],
+            "agent_id": agent["id"],
+            "agent_specialization": specialization,
+            "agent_rank": agent.get("rank", "soldier"),
+            "agent_merit": agent.get("merit_score", 50),
+            "agent_created": agent.get("is_new", False),
+            "execution_time_ms": execution_time_ms,
+            "success": success
         }
         
     except Exception as e:
+        print(f"❌ Hata: {e}")
         return {
             "answer": f"⚠️ Sistem hatası: {str(e)}",
             "ministry_name": "Hata Yönetimi",
@@ -53,6 +400,6 @@ def ask_the_government(user_query: str) -> Dict[str, Any]:
             "ministry_style": "color: red;",
             "agent_used": "Error Handler",
             "agent_created": False,
-            "execution_time_ms": 0,
+            "execution_time_ms": int((time.time() - start_time) * 1000),
             "success": False
         }

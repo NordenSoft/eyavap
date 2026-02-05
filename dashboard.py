@@ -144,13 +144,22 @@ if page == "💬 Sohbet":
                 agent_icon = response_data.get('ministry_icon', '🤖')
                 agent_name = response_data.get('agent_used', 'AI Agent')
                 agent_created = response_data.get('agent_created', False)
+                agent_rank = response_data.get('agent_rank', 'soldier')
+                agent_merit = response_data.get('agent_merit', 50)
                 exec_time = response_data.get('execution_time_ms', 0)
+                
+                rank_tr = {
+                    "soldier": "Asker",
+                    "specialist": "Uzman",
+                    "senior_specialist": "Kıdemli Uzman",
+                    "vice_president": "Başkan Yardımcısı"
+                }
                 
                 full_response = f"""### {agent_icon} {agent_name}
 {response_data['answer']}
 
 ---
-{'🆕 **Yeni ajan oluşturuldu!**' if agent_created else ''}
+{'🆕 **Yeni Soldier ajan oluşturuldu!**' if agent_created else f'🎖️ **Rütbe:** {rank_tr.get(agent_rank, agent_rank)} | **Liyakat:** {agent_merit}/100'}
 ⏱️ *Yanıt süresi: {exec_time}ms*
 """
             except Exception as e:
