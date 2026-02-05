@@ -1,5 +1,6 @@
 import google.generativeai as genai
 import streamlit as st
+import time
 
 # 1. API ANAHTARINI ÇEK
 try:
@@ -7,69 +8,77 @@ try:
 except Exception as e:
     print(f"API Hatası: {e}")
 
-# 2. AKILLI MODEL SEÇİCİ (Smart Model Loader)
-# Senin stratejin: Sırayla dene, hangisi çalışıyorsa onu kap.
-def get_working_model():
-    # Denenecek Modeller Listesi (En hızlıdan yavaşa doğru)
+# --- YARDIMCI FONKSİYON: GÜVENLİ ÜRETİM (Safe Generator) ---
+def generate_with_fallback(prompt):
+    """
+    Bu fonksiyon sırayla modelleri dener.
+    Flash hata verirse Pro devreye girer.
+    """
+    # Denenecek Modeller Listesi (Sıra Önemli: Hızlı -> Güçlü -> Eski)
     candidate_models = [
-        'gemini-1.5-flash',          # En standart alias
-        'models/gemini-1.5-flash',   # Tam yol ile
-        'gemini-1.5-flash-latest',   # En güncel sürüm
-        'gemini-1.5-flash-001',      # Kararlı eski sürüm
-        'gemini-1.5-pro',            # Flash yoksa Pro (Ağır ama çalışır)
-        'gemini-1.0-pro'             # En eski güvenli liman
+        'gemini-1.5-flash',          # İlk Hedef: Hız Canavarı
+        'gemini-1.5-flash-latest',   # Alternatif isim
+        'gemini-1.5-pro',            # Güvenli Liman (Biraz yavaş ama zeki)
+        'gemini-pro'                 # Son Çare (Eski toprak)
     ]
+    
+    last_error = ""
     
     for model_name in candidate_models:
         try:
-            # Test atışı yapalım (Boş bir model oluştur)
+            # Modeli yükle
             model = genai.GenerativeModel(model_name)
-            return model
-        except:
+            # Üretmeyi dene
+            response = model.generate_content(prompt)
+            return response
+        except Exception as e:
+            # Hata alırsak (404, 429 vs) logla ve sıradaki modele geç
+            last_error = str(e)
+            print(f"⚠️ {model_name} başarısız oldu, diğerine geçiliyor... Hata: {e}")
+            time.sleep(1) # API'yi boğmamak için 1 saniye nefes al
             continue
             
-    # Hiçbiri olmazsa varsayılanı döndür
-    return genai.GenerativeModel('gemini-1.5-flash')
+    # Hiçbiri çalışmazsa yapay bir hata mesajı döndür
+    class FakeResponse:
+        text = f"⚠️ Sistem şu an aşırı yoğun. Lütfen 1 dakika sonra tekrar deneyin. (Teknik Detay: {last_error})"
+    return FakeResponse()
 
-# En sağlam modeli seçiyoruz
-model = get_working_model()
-
-# 3. YEDİ BAKANLIK (Devletin Hafızası)
+# --- 7 SÜTUNUN ANAYASASI ---
 MINISTRIES = {
     "SAGLIK": {
         "name": "🏥 Danimarka Sağlık Bakanlığı",
         "role": "Sen Danimarka sağlık sistemi (Sundhed) uzmanı, şefkatli bir doktorsun.",
-        "context": "Konular: Aile hekimi (Praktiserende læge), 1813 Acil Hattı, Sundhedskort (Sarı kart), İlaçlar, Psikoloji."
+        "context": "Konular: Aile hekimi (Praktiserende læge), 1813 Acil Hattı, Sundhedskort, İlaçlar."
     },
     "EGITIM": {
         "name": "🎓 Eğitim Bakanlığı",
-        "role": "Sen Danimarka eğitim sistemi uzmanısın. Öğretici bir dilsin var.",
-        "context": "Konular: Kreş (Vuggestue/Børnehave), Okul (Folkeskole), Lise (Gymnasium), Üniversite, SU (Öğrenci maaşı)."
+        "role": "Sen Danimarka eğitim sistemi uzmanısın.",
+        "context": "Konular: Kreş (Vuggestue), Okul, Lise, Üniversite, SU maaşı."
     },
     "KARIYER": {
         "name": "💼 Çalışma ve Kariyer Bakanlığı",
         "role": "Sen sert bir kariyer koçu ve iş hukuku uzmanısın.",
-        "context": "Konular: Jobindex, LinkedIn, CV hazırlama, Dagpenge (İşsizlik maaşı), A-kasse, Sendikalar."
+        "context": "Konular: Jobindex, CV, Dagpenge (İşsizlik maaşı), A-kasse, Sendikalar."
     },
     "FINANS": {
         "name": "💰 Ekonomi ve Vergi Bakanlığı",
-        "role": "Sen Skat.dk (Vergi) ve yatırım uzmanısın. Çok titizsin.",
-        "context": "Konular: Vergi kartları (Forskudsopgørelse), Vergi iadesi, NemKonto, Banka kredileri, Kripto vergisi."
+        "role": "Sen Skat.dk (Vergi) ve yatırım uzmanısın.",
+        "context": "Konular: Vergi kartları (Forskudsopgørelse), Vergi iadesi, NemKonto."
     },
     "EMLAK": {
         "name": "🏠 Konut ve Barınma Bakanlığı",
         "role": "Sen Kopenhag emlak piyasasının kurdusun.",
-        "context": "Konular: Kiralık ev bulma (BoligPortal), Kira yardımı (Boligstøtte), Elektrik/Su faturaları, Taşınma kuralları."
+        "context": "Konular: Kiralık ev bulma, Boligstøtte (Kira yardımı), Elektrik/Su."
     },
     "HUKUK": {
         "name": "⚖️ Adalet ve Vatandaşlık Bakanlığı",
-        "role": "Sen tecrübeli bir Danimarka avukatısın. Resmi konuşursun.",
-        "context": "Konular: Oturum izni (Ny i Danmark), Vatandaşlık, MitID, Boşanma, Aile birleşimi."
+        "role": "Sen tecrübeli bir Danimarka avukatısın.",
+        "context": "Konular: Oturum izni, Vatandaşlık, MitID, Boşanma."
     },
     "SOSYAL": {
         "name": "🎉 Kültür ve Sosyal Yaşam Bakanlığı",
         "role": "Sen Danimarka'nın en eğlenceli rehberisin.",
-        "context": "Konular: Kopenhag etkinlikleri, Restoranlar, Tivoli, Festivaller, Müzeler."
+        "context": "Konular: Etkinlikler, Restoranlar, Tivoli, Festivaller."
     }
 }
 
@@ -83,11 +92,13 @@ def ask_the_government(user_query):
     Cevap (Sadece kategori kodu):
     """
     
+    # Router için de güvenli fonksiyonu kullanıyoruz
+    router_res = generate_with_fallback(router_prompt)
+    
     try:
-        router_response = model.generate_content(router_prompt)
-        category_code = router_response.text.strip().upper().replace(".", "").replace(" ", "")
+        category_code = router_res.text.strip().upper().replace(".", "").replace(" ", "")
     except:
-        category_code = "SOSYAL" 
+        category_code = "SOSYAL"
 
     selected_ministry = MINISTRIES.get(category_code, MINISTRIES["SOSYAL"])
     
@@ -95,18 +106,16 @@ def ask_the_government(user_query):
     agent_prompt = f"""
     SENİN ROLÜN: {selected_ministry['role']}
     UZMANLIK ALANIN: {selected_ministry['context']}
+    
     KULLANICI SORUSU: "{user_query}"
-    GÖREVİN: Bu soruyu Danimarka kurallarına göre Türkçe, net ve çözüm odaklı cevapla.
+    
+    GÖREVİN: 
+    Bu soruyu Danimarka kurallarına göre Türkçe cevapla.
     """
     
-    # Burada da hata olursa yakalayalım
-    try:
-        final_response = model.generate_content(agent_prompt)
-        answer_text = final_response.text
-    except Exception as e:
-        answer_text = f"⚠️ Bağlantı hatası oluştu. Lütfen tekrar deneyin. (Hata: {str(e)})"
+    final_res = generate_with_fallback(agent_prompt)
     
     return {
         "ministry_name": selected_ministry['name'],
-        "answer": answer_text
+        "answer": final_res.text
     }
