@@ -1,90 +1,73 @@
-import google.generativeai as genai
+import time
 import streamlit as st
+import google.generativeai as genai
+from openai import OpenAI
 
-# --- API YAPILANDIRMASI ---
-def configure_genai():
-    # Hem GEMINI_API_KEY hem de [gemini] altındaki api_key'i kontrol eder
-    api_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("gemini", {}).get("api_key")
-    
-    if api_key:
-        genai.configure(api_key=api_key)
-        return True
-    return False
+def ask_the_government(user_query: str):
+    openai_key = st.secrets.get("OPENAI_API_KEY") or st.secrets.get("openai", {}).get("api_key")
+    gemini_key = st.secrets.get("GEMINI_API_KEY") or st.secrets.get("gemini", {}).get("api_key")
 
+    answer = ""
+    model_used = ""
 
-def pick_available_model(preferred_models=None):
-    """
-    Kullanılabilir modeller arasından uygun olanı seçer.
-    """
-    if preferred_models is None:
-        preferred_models = [
-            "models/gemini-1.5-flash",
-            "models/gemini-1.5-flash-8b",
-            "models/gemini-2.0-flash",
-            "models/gemini-1.5-pro",
-            "models/gemini-pro",
-        ]
+    # --- 1) OPENAI ---
+    if openai_key:
+        try:
+            client = OpenAI(api_key=openai_key)
+            resp = client.chat.completions.create(
+                model="gpt-4o",  # istersen gpt-4o-mini yap, daha ekonomik
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "Sen Danimarka devlet sistemleri (skat, sağlık, hukuk) konusunda uzman, "
+                            "profesyonel bir asistansın. Türkçe cevap ver. Kısa, öz ve çözüm odaklı ol."
+                        )
+                    },
+                    {"role": "user", "content": user_query}
+                ],
+                temperature=0.3,
+            )
+            answer = (resp.choices[0].message.content or "").strip()
+            model_used = "OpenAI GPT-4o"
+        except Exception as e:
+            # Streamlit log
+            st.warning(f"OpenAI hattı düştü: {e}")
 
-    try:
-        available = []
-        for m in genai.list_models():
-            if "generateContent" in getattr(m, "supported_generation_methods", []):
-                available.append(m.name)
+    # --- 2) GEMINI (fallback) ---
+    if not answer and gemini_key:
+        try:
+            genai.configure(api_key=gemini_key)
 
-        for name in preferred_models:
-            if name in available:
-                return name
+            # ⚠️ model adını düzelt
+            model = genai.GenerativeModel("gemini-1.0-pro")
 
-        # Tercih edilen yoksa ilk uygun modeli seç
-        if available:
-            return available[0]
-    except Exception:
-        pass
+            # basit backoff (429 vs.)
+            last_err = None
+            for i in range(3):
+                try:
+                    res = model.generate_content(user_query)
+                    answer = (getattr(res, "text", "") or "").strip()
+                    if answer:
+                        model_used = "Google Gemini"
+                        break
+                except Exception as e:
+                    last_err = e
+                    time.sleep(1.5 * (2 ** i))  # 1.5s, 3s, 6s
 
-    # En son fallback
-    return preferred_models[0]
+            if not answer and last_err:
+                raise last_err
 
-# --- ANA CEVAP FONKSİYONU ---
-def ask_the_government(user_query):
-    if not configure_genai():
-        return {"answer": "⚠️ API Key hatası! Secrets kısmını kontrol edin.", "ministry_name": "Sistem", "ministry_icon": "⚠️"}
+        except Exception as e:
+            st.warning(f"Gemini hattı da düştü: {e}")
 
-    # Kullanılabilir modeli otomatik seç
-    model_name = pick_available_model()
-    model = genai.GenerativeModel(model_name)
+    # --- 3) İkisi de yoksa / ikisi de patladıysa ---
+    if not answer:
+        answer = "⚠️ Şu an yanıt üretilemiyor. (AI kotası/bağlantı sorunu olabilir). Biraz sonra tekrar dene."
 
-    # Bakanlık Belirleme (Router)
-    router_prompt = f"Categorize this Danish-related query into one: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL. Query: {user_query}. Output ONLY the category name."
-    
-    try:
-        role_res = model.generate_content(router_prompt)
-        category = role_res.text.strip().upper()
-    except:
-        category = "SOSYAL"
-
-    # Bakanlık Bilgileri
-    MINISTRIES = {
-        "SAGLIK": {"name": "🏥 Ministry of Health", "role": "Danimarka sağlık sistemi uzmanı."},
-        "EGITIM": {"name": "🎓 Ministry of Education", "role": "Danimarka eğitim ve SU uzmanı."},
-        "KARIYER": {"name": "💼 Ministry of Employment", "role": "İş hukuku ve A-kasse uzmanı."},
-        "FINANS": {"name": "💰 Ministry of Taxation", "role": "Skat ve vergi uzmanı."},
-        "EMLAK": {"name": "🏠 Ministry of Housing", "role": "Kira hukuku uzmanı."},
-        "HUKUK": {"name": "⚖️ Ministry of Justice", "role": "Göçmenlik ve vize avukatı."},
-        "SOSYAL": {"name": "🎉 Ministry of Culture", "role": "Danimarka sosyal yaşam rehberi."}
+    return {
+        "answer": answer,
+        "ministry_name": f"Tora {model_used or 'Offline'} Hattı",
+        "ministry_icon": "🏛️",
+        "ministry_style": "color: white;"
     }
-
-    m_info = MINISTRIES.get(category, MINISTRIES["SOSYAL"])
-
-    # Final Cevap
-    agent_prompt = f"Sen {m_info['role']} bir asistsansın. Soru: {user_query}. Türkçe cevap ver. Kısa ve net ol."
-    
-    try:
-        final_res = model.generate_content(agent_prompt)
-        return {
-            "answer": final_res.text,
-            "ministry_name": m_info['name'],
-            "ministry_icon": m_info['name'].split()[0],
-            "ministry_style": "color: white;"
-        }
-    except Exception as e:
-        return {"answer": f"Bir hata oluştu: {str(e)}", "ministry_name": "Hata", "ministry_icon": "❌"}
