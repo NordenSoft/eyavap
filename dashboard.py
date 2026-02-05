@@ -147,6 +147,7 @@ if page == "💬 Sohbet":
                 agent_rank = response_data.get('agent_rank', 'soldier')
                 agent_merit = response_data.get('agent_merit', 50)
                 exec_time = response_data.get('execution_time_ms', 0)
+                ai_model = response_data.get('ai_model', 'Unknown')
                 
                 rank_tr = {
                     "soldier": "Asker",
@@ -160,6 +161,7 @@ if page == "💬 Sohbet":
 
 ---
 {'🆕 **Yeni Soldier ajan oluşturuldu!**' if agent_created else f'🎖️ **Rütbe:** {rank_tr.get(agent_rank, agent_rank)} | **Liyakat:** {agent_merit}/100'}
+🤖 *AI Model: {ai_model}*
 ⏱️ *Yanıt süresi: {exec_time}ms*
 """
             except Exception as e:

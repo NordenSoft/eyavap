@@ -1,6 +1,6 @@
 """
 EYAVAP: Basit Ajan Sistemi
-Supabase + OpenAI ile otomatik ajan oluşturma ve liyakat sistemi
+Supabase + OpenAI/Gemini ile otomatik ajan oluşturma ve liyakat sistemi
 """
 
 import time
@@ -8,6 +8,13 @@ import json
 import streamlit as st
 from typing import Dict, Any, Optional
 from datetime import datetime
+
+try:
+    import google.generativeai as genai
+    HAS_GEMINI = True
+except ImportError:
+    HAS_GEMINI = False
+    print("⚠️ google-generativeai yüklü değil (opsiyonel)")
 
 
 # ==================== SUPABASE BAĞLANTISI ====================
@@ -30,7 +37,7 @@ def get_supabase_client():
         return None
 
 
-# ==================== OPENAI BAĞLANTISI ====================
+# ==================== AI MODEL BAĞLANTILARI ====================
 
 def get_openai_client():
     """OpenAI client'ını al"""
@@ -47,6 +54,62 @@ def get_openai_client():
         return client
     except Exception as e:
         print(f"⚠️ OpenAI bağlantı hatası: {e}")
+        return None
+
+
+def get_gemini_model(is_unrestricted: bool = False):
+    """
+    Gemini model'ini al
+    
+    Args:
+        is_unrestricted: Kısıtlamasız ajan için güvenlik filtrelerini kaldır
+    
+    Returns:
+        Gemini model veya None
+    """
+    if not HAS_GEMINI:
+        return None
+    
+    try:
+        gemini_key = st.secrets.get("GEMINI_API_KEY")
+        
+        if not gemini_key:
+            print("⚠️ Gemini API key bulunamadı")
+            return None
+        
+        genai.configure(api_key=gemini_key)
+        
+        # Kısıtlamasız ajan için güvenlik filtrelerini kaldır
+        if is_unrestricted:
+            unrestricted_safety = [
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
+            ]
+            print("🔓 Gemini güvenlik filtreleri devre dışı (Unrestricted mode)")
+        else:
+            # Normal mod - varsayılan güvenlik ayarları
+            unrestricted_safety = None
+        
+        # Kullanılabilir modeli seç
+        for model_name in ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-1.0-pro"]:
+            try:
+                if unrestricted_safety:
+                    model = genai.GenerativeModel(model_name, safety_settings=unrestricted_safety)
+                else:
+                    model = genai.GenerativeModel(model_name)
+                
+                # Test et
+                model.generate_content("test")
+                print(f"✅ Gemini model hazır: {model_name} ({'Unrestricted' if is_unrestricted else 'Normal'})")
+                return model
+            except:
+                continue
+        
+        return None
+    except Exception as e:
+        print(f"⚠️ Gemini bağlantı hatası: {e}")
         return None
 
 
@@ -97,18 +160,22 @@ SADECE JSON formatında yanıt ver:
   "keywords": ["vergi", "skat"]
 }}"""
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Sen bir sorgu sınıflandırma uzmanısın. Sadece JSON formatında yanıt ver."},
-                {"role": "user", "content": prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.1,
-            max_tokens=200
-        )
-        
-        result = json.loads(response.choices[0].message.content)
+        # OpenAI veya Gemini kullan
+        if hasattr(client, 'chat'):  # OpenAI
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "Sen bir sorgu sınıflandırma uzmanısın. Sadece JSON formatında yanıt ver."},
+                    {"role": "user", "content": prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.1,
+                max_tokens=200
+            )
+            result = json.loads(response.choices[0].message.content)
+        else:  # Gemini
+            response = client.generate_content(prompt)
+            result = json.loads(response.text.strip().replace('```json', '').replace('```', ''))
         
         return {
             "specialization": result.get("specialization", "general"),
@@ -332,9 +399,9 @@ def ask_the_government(user_query: str) -> Dict[str, Any]:
     """
     Ana ajan sistemi
     
-    1. Konuyu analiz et (OpenAI)
+    1. Konuyu analiz et (OpenAI/Gemini)
     2. Uygun ajan bul/oluştur (Supabase)
-    3. Yanıt üret (OpenAI)
+    3. Yanıt üret (OpenAI/Gemini)
     4. Liyakat puanını güncelle
     5. Sorguyu logla
     """
@@ -342,28 +409,46 @@ def ask_the_government(user_query: str) -> Dict[str, Any]:
     
     # Bağlantılar
     supabase = get_supabase_client()
-    client = get_openai_client()
     
-    if not client:
-        return {
-            "answer": "⚠️ AI modeli kullanılamıyor. OpenAI API anahtarını kontrol edin.",
-            "ministry_name": "Hata Yönetimi",
-            "ministry_icon": "⚠️",
-            "ministry_style": "color: red;",
-            "agent_used": "Error",
-            "agent_created": False,
-            "execution_time_ms": 0,
-            "success": False
-        }
+    # AI model seçimi: Önce OpenAI, fallback Gemini
+    client = get_openai_client()
+    use_openai = bool(client)
+    
+    if not use_openai:
+        # OpenAI yoksa Gemini dene (kısıtlamasız mod için hazır olsun)
+        gemini_model = get_gemini_model(is_unrestricted=False)
+        use_gemini = bool(gemini_model)
+        
+        if not use_gemini:
+            return {
+                "answer": "⚠️ AI modeli kullanılamıyor. OpenAI veya Gemini API anahtarını kontrol edin.",
+                "ministry_name": "Hata Yönetimi",
+                "ministry_icon": "⚠️",
+                "ministry_style": "color: red;",
+                "agent_used": "Error",
+                "agent_created": False,
+                "execution_time_ms": 0,
+                "success": False
+            }
+    else:
+        gemini_model = None
+        use_gemini = False
     
     try:
         # 1. Konu analizi
         print(f"🔍 Konu analiz ediliyor...")
-        analysis = analyze_topic(user_query, client)
+        analysis_model = client if use_openai else gemini_model
+        analysis = analyze_topic(user_query, analysis_model)
         specialization = analysis["specialization"]
         keywords = analysis["keywords"]
+        is_unrestricted = (specialization == "unrestricted")
         
         print(f"   → Uzmanlık: {specialization} (Güven: {analysis['confidence']:.2f})")
+        
+        # Kısıtlamasız ajan için Gemini'yi unrestricted modda hazırla
+        if is_unrestricted and use_gemini:
+            print("🔓 Kısıtlamasız mod - Gemini güvenlik filtreleri kaldırılıyor...")
+            gemini_model = get_gemini_model(is_unrestricted=True)
         
         # 2. Ajan bul/oluştur
         print(f"👤 Ajan aranıyor...")
@@ -404,17 +489,26 @@ Gerekirse eylem yetkilerini kullan (web araştırması, analiz, vb.).
 
 Dürüst ve yardımcı ol. Bilmediğin konularda tahminde bulunma."""
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_query}
-            ],
-            temperature=0.3,
-            max_tokens=1500
-        )
-        
-        answer = response.choices[0].message.content.strip()
+        # AI model ile yanıt üret
+        if use_openai:
+            # OpenAI ile yanıt üret
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_query}
+                ],
+                temperature=0.3,
+                max_tokens=1500
+            )
+            answer = response.choices[0].message.content.strip()
+            model_used = "OpenAI GPT-4o-mini"
+        else:
+            # Gemini ile yanıt üret (kısıtlamasız modda güvenlik filtreleri kapalı)
+            full_prompt = f"{system_prompt}\n\nSORU: {user_query}"
+            response = gemini_model.generate_content(full_prompt)
+            answer = response.text.strip()
+            model_used = f"Gemini {'🔓 Unrestricted' if is_unrestricted else ''}"
         
         # 4. Liyakat güncelle
         success = len(answer) > 50  # Basit başarı kriteri
@@ -446,6 +540,7 @@ Dürüst ve yardımcı ol. Bilmediğin konularda tahminde bulunma."""
             "agent_rank": agent.get("rank", "soldier"),
             "agent_merit": agent.get("merit_score", 50),
             "agent_created": agent.get("is_new", False),
+            "ai_model": model_used,  # Hangi AI modeli kullanıldı
             "execution_time_ms": execution_time_ms,
             "success": success
         }
