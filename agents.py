@@ -11,13 +11,47 @@ def configure_genai():
         return True
     return False
 
+
+def pick_available_model(preferred_models=None):
+    """
+    Kullanılabilir modeller arasından uygun olanı seçer.
+    """
+    if preferred_models is None:
+        preferred_models = [
+            "models/gemini-1.5-flash",
+            "models/gemini-1.5-flash-8b",
+            "models/gemini-2.0-flash",
+            "models/gemini-1.5-pro",
+            "models/gemini-pro",
+        ]
+
+    try:
+        available = []
+        for m in genai.list_models():
+            if "generateContent" in getattr(m, "supported_generation_methods", []):
+                available.append(m.name)
+
+        for name in preferred_models:
+            if name in available:
+                return name
+
+        # Tercih edilen yoksa ilk uygun modeli seç
+        if available:
+            return available[0]
+    except Exception:
+        pass
+
+    # En son fallback
+    return preferred_models[0]
+
 # --- ANA CEVAP FONKSİYONU ---
 def ask_the_government(user_query):
     if not configure_genai():
         return {"answer": "⚠️ API Key hatası! Secrets kısmını kontrol edin.", "ministry_name": "Sistem", "ministry_icon": "⚠️"}
 
-    # DAHA ÖNCE ÇALIŞAN MODEL İSMİ: "models/gemini-1.5-flash"
-    model = genai.GenerativeModel("models/gemini-1.5-flash")
+    # Kullanılabilir modeli otomatik seç
+    model_name = pick_available_model()
+    model = genai.GenerativeModel(model_name)
 
     # Bakanlık Belirleme (Router)
     router_prompt = f"Categorize this Danish-related query into one: SAGLIK, EGITIM, KARIYER, FINANS, EMLAK, HUKUK, SOSYAL. Query: {user_query}. Output ONLY the category name."
