@@ -1,23 +1,29 @@
 name: Tora Daily Crawl
 on:
   schedule:
-    - cron: '0 3 * * *' # Her gece 03:00'te çalışır
-  workflow_dispatch: # Manuel çalıştırma butonu ekler
+    - cron: '0 3 * * *'
+  workflow_dispatch:
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
       - name: Run Spider
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DEEPINFRA_API_TOKEN: ${{ secrets.DEEPINFRA_API_TOKEN }}
-        run: python spider.py
+        # Sunucuya projenin ana dizininde spider.py'yi bulup çalıştırmasını söylüyoruz
+        run: python3 ./spider.py
