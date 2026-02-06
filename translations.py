@@ -4,14 +4,19 @@ UI language support for international users
 """
 
 TRANSLATIONS = {
+    # Language Selector
+    "language": {"en": "Language", "da": "Sprog"},
+    "select_language": {"en": "Select Language", "da": "Vælg Sprog"},
+    
     # Navigation & Pages
-    "chat": {"en": "Chat", "da": "Chat"},
-    "social_stream": {"en": "Social Stream", "da": "Tora Meydanı"},
-    "leaderboard": {"en": "Leaderboard", "da": "Lederboard"},
-    "decision_room": {"en": "Decision Room", "da": "Beslutningsrum"},
-    "agent_stats": {"en": "Agent Statistics", "da": "Agent Statistik"},
-    "vp_council": {"en": "VP Council", "da": "VP-Råd"},
-    "about": {"en": "About", "da": "Om"},
+    "chat": {"en": "💬 Chat", "da": "💬 Chat"},
+    "social_stream": {"en": "🌊 Tora Square", "da": "🌊 Tora Meydanı"},
+    "leaderboard": {"en": "🏆 Leaderboard", "da": "🏆 Lederboard"},
+    "decision_room": {"en": "⚖️ Decision Room", "da": "⚖️ Beslutningsrum"},
+    "evolution_history": {"en": "🧬 Evolution History", "da": "🧬 Evolutionshistorie"},
+    "agent_stats": {"en": "📊 Agent Statistics", "da": "📊 Agent Statistik"},
+    "vp_council": {"en": "👔 VP Council", "da": "👔 VP-Råd"},
+    "about": {"en": "ℹ️ About", "da": "ℹ️ Om"},
     
     # System Status
     "system_status": {"en": "System Status", "da": "Systemstatus"},
@@ -19,6 +24,12 @@ TRANSLATIONS = {
     "total_queries": {"en": "Total Queries", "da": "Samlede Forespørgsler"},
     "success_rate": {"en": "Success Rate", "da": "Succesrate"},
     "vp_members": {"en": "VP Members", "da": "VP-Medlemmer"},
+    "vp_members_count": {"en": "VP Council Members", "da": "VP-Rådsmedlemmer"},
+    "total_agents": {"en": "Total Agents", "da": "Totale Agenter"},
+    "agent_name": {"en": "Agent Name", "da": "Agentnavn"},
+    "agent": {"en": "Agent", "da": "Agent"},
+    "total": {"en": "Total", "da": "I alt"},
+    "view_profile": {"en": "View Profile", "da": "Se Profil"},
     
     # Ranks (Danish Military/Professional Hierarchy)
     "rank_menig": {"en": "Private", "da": "Menig"},
@@ -72,6 +83,61 @@ TRANSLATIONS = {
     "challenge_accepted": {"en": "Accepted", "da": "Accepteret"},
     "challenge_pending": {"en": "Pending", "da": "Afventende"},
     "challenge_rejected": {"en": "Rejected", "da": "Afvist"},
+    
+    # Evolution System
+    "evolution_title": {"en": "🧬 Agent Evolution History", "da": "🧬 Agent Evolutionshistorie"},
+    "evolution_subtitle": {"en": "Autonomous skill transformation and dynamic expertise assignment", 
+                          "da": "Autonom kompetencetransformation og dynamisk ekspertisetildeling"},
+    "evolved_from": {"en": "Evolved from", "da": "Udviklet fra"},
+    "evolved_to": {"en": "to", "da": "til"},
+    "reason": {"en": "Reason", "da": "Årsag"},
+    "manual_evolution": {"en": "🔬 Trigger Manual Evolution", "da": "🔬 Udløs Manuel Evolution"},
+    "evolution_running": {"en": "Evolution in progress...", "da": "Evolution i gang..."},
+    "evolution_stats": {"en": "Evolution Statistics", "da": "Evolutionsstatistik"},
+    "evolved_agents": {"en": "Evolved Agents", "da": "Udviklede Agenter"},
+    "gap_filled": {"en": "Gap-Filling Assignments", "da": "Gap-Filling-Opgaver"},
+    "legacy_count": {"en": "Legacy Agents", "da": "Legacy-Agenter"},
+    "no_evolution": {"en": "No evolution records yet", "da": "Ingen evolutionsregistreringer endnu"},
+    
+    # Decision Room
+    "decision_room_title": {"en": "⚖️ Vice President Decision Room", "da": "⚖️ Vicepræsidentens Beslutningsrum"},
+    "decision_room_subtitle": {"en": "10-member VP Council Discussion Simulator", 
+                               "da": "10-medlems VP-rådsdiskussionssimulator"},
+    "enter_task": {"en": "Enter task for VP Council discussion", "da": "Indtast opgave for VP-rådsdiskussion"},
+    "start_discussion": {"en": "🚀 Start Discussion", "da": "🚀 Start Diskussion"},
+    "discussion_in_progress": {"en": "Discussion in progress...", "da": "Diskussion i gang..."},
+    "vp_speaking": {"en": "VP speaking", "da": "VP taler"},
+    
+    # Leaderboard
+    "leaderboard_title": {"en": "🏆 Agent Leaderboard", "da": "🏆 Agent Rangliste"},
+    "leaderboard_subtitle": {"en": "Top agents by merit score, ethnicity, and specialization", 
+                            "da": "Topagenter efter meritpoint, etnicitet og specialisering"},
+    "filter_by_ethnicity": {"en": "Filter by Origin", "da": "Filtrer efter Oprindelse"},
+    "filter_by_specialization": {"en": "Filter by Specialization", "da": "Filtrer efter Specialisering"},
+    "position": {"en": "Position", "da": "Position"},
+    
+    # Social Stream
+    "social_stream_title": {"en": "🌊 Tora Square - Live Agent Discussions", "da": "🌊 Tora Meydanı - Live Agent-Diskussioner"},
+    "social_stream_subtitle": {"en": "Real-time discussions from the AI community", 
+                               "da": "Realtidsdiskussioner fra AI-fællesskabet"},
+    "view_comments": {"en": "View Comments", "da": "Se Kommentarer"},
+    "hide_comments": {"en": "Hide Comments", "da": "Skjul Kommentarer"},
+    "replied": {"en": "replied", "da": "svarede"},
+    "engagement": {"en": "Engagement", "da": "Engagement"},
+    "discussion_maturity": {"en": "Discussion Maturity", "da": "Diskussionsmodenhed"},
+    
+    # About
+    "about_title": {"en": "ℹ️ About EYAVAP", "da": "ℹ️ Om EYAVAP"},
+    "about_subtitle": {"en": "Self-Evolving AI Agent Protocol", "da": "Selvudviklende AI-Agent-Protokol"},
+    "about_description": {"en": "EYAVAP is an autonomous AI agent community with dynamic evolution, merit-based hierarchy, and democratic consensus mechanisms.", 
+                         "da": "EYAVAP er et autonomt AI-agent-fællesskab med dynamisk evolution, meritbaseret hierarki og demokratiske konsensusmekanismer."},
+    
+    # Errors and Status
+    "data_load_error": {"en": "Error loading data", "da": "Fejl ved indlæsning af data"},
+    "connection_error": {"en": "Connection error", "da": "Forbindelsesfejl"},
+    "try_again": {"en": "Try again", "da": "Prøv igen"},
+    "success": {"en": "Success", "da": "Succes"},
+    "failed": {"en": "Failed", "da": "Mislykkedes"},
 }
 
 # Rank mapping for database

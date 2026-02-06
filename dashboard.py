@@ -17,10 +17,15 @@ except ImportError:
     print("⚠️ UYARI: gspread veya oauth2client yüklenmemiş.")
 
 from agents import ask_the_government
+from translations import get_text, RANK_DISPLAY
+
+# Initialize session state for language
+if 'language' not in st.session_state:
+    st.session_state.language = 'da'  # Default: Danish
 
 # Page config
 st.set_page_config(
-    page_title="EYAVAP: Ajan Sistemi",
+    page_title="EYAVAP: Agent System",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -55,18 +60,42 @@ def log_to_google_sheet(user_query, agent_name, ai_response):
 # ==================== SIDEBAR: AJAN YÖNETİMİ ====================
 
 with st.sidebar:
-    st.title("🤖 EYAVAP Ajan Sistemi")
+    st.title("🤖 EYAVAP Agent System")
+    
+    # Language Selector (at the top)
+    lang_options = {
+        "🇩🇰 Dansk": "da",
+        "🇬🇧 English": "en"
+    }
+    selected_lang_display = st.selectbox(
+        get_text("select_language", st.session_state.language),
+        options=list(lang_options.keys()),
+        index=0 if st.session_state.language == "da" else 1
+    )
+    st.session_state.language = lang_options[selected_lang_display]
+    lang = st.session_state.language
+    
+    st.divider()
     
     page = st.radio(
-        "Navigasyon",
-        ["💬 Sohbet", "🌊 Tora Meydanı", "🏆 Liderlik Tablosu", "⚖️ Karar Odası", "🧬 Evrim Tarihi", "📊 Ajan İstatistikleri", "👔 Başkan Yardımcısı Kurulu", "ℹ️ Hakkında"],
+        "Navigation",
+        [
+            get_text("chat", lang),
+            get_text("social_stream", lang),
+            get_text("leaderboard", lang),
+            get_text("decision_room", lang),
+            get_text("evolution_history", lang),
+            get_text("agent_stats", lang),
+            get_text("vp_council", lang),
+            get_text("about", lang)
+        ],
         label_visibility="collapsed"
     )
     
     st.divider()
     
     # Sistem durumu
-    st.subheader("Sistem Durumu")
+    st.subheader(get_text("system_status", lang))
     
     # Supabase bağlantısını kontrol et
     db_connected = False
@@ -93,12 +122,12 @@ with st.sidebar:
             
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Aktif Ajanlar", system_stats.get("active_agents", 0))
+                st.metric(get_text("active_agents", lang), system_stats.get("active_agents", 0))
             with col2:
-                st.metric("Toplam Sorgu", system_stats.get("total_queries", 0))
+                st.metric(get_text("total_queries", lang), system_stats.get("total_queries", 0))
             
-            st.metric("Başarı Oranı", f"{system_stats.get('success_rate', 0):.1f}%")
-            st.metric("Başkan Yardımcıları", system_stats.get("vice_presidents", 0))
+            st.metric(get_text("success_rate", lang), f"{system_stats.get('success_rate', 0):.1f}%")
+            st.metric(get_text("vp_members", lang), system_stats.get("vice_presidents", 0))
             
         except Exception as e:
             st.warning(f"⚠️ DB verileri yüklenemedi")
@@ -110,9 +139,9 @@ with st.sidebar:
 
 # ==================== ANA SAYFA: SOHBET ====================
 
-if page == "💬 Sohbet":
-    st.title("🇩🇰 Tora: Denmark Assistant")
-    st.caption("Powered by EYAVAP Ajan Sistemi")
+if page == get_text("chat", lang):
+    st.title("🇩🇰 Tora: Denmark Assistant" if lang == "da" else "🇩🇰 Tora: Denmark Assistant")
+    st.caption("Powered by EYAVAP Agent System" if lang == "en" else "Drevet af EYAVAP Agent System")
     
     # Chat geçmişi
     if "messages" not in st.session_state:
@@ -204,9 +233,9 @@ if page == "💬 Sohbet":
 
 # ==================== TORA MEYDANI (Live Feed) ====================
 
-elif page == "🌊 Tora Meydanı":
-    st.title("🌊 Tora Meydanı")
-    st.caption("Ajanların canlı tartışmaları ve paylaşımları")
+elif page == get_text("social_stream", lang):
+    st.title(get_text("social_stream_title", lang))
+    st.caption(get_text("social_stream_subtitle", lang))
     
     # DB kontrolü
     try:
@@ -236,31 +265,37 @@ elif page == "🌊 Tora Meydanı":
             # Refresh butonu
             col1, col2 = st.columns([3, 1])
             with col2:
-                if st.button("🔄 Yenile", use_container_width=True):
+                if st.button(f"🔄 {get_text('refresh', lang)}", use_container_width=True):
                     st.rerun()
             
             # Filtreler
             col1, col2, col3 = st.columns(3)
             with col1:
-                topic_filter = st.selectbox("Konu", ["Tümü", "denmark_tax", "cyber_security", "general", "denmark_health"])
+                all_text = get_text("all", lang)
+                topic_filter = st.selectbox(get_text("topic", lang), [all_text, "denmark_tax", "cyber_security", "general", "denmark_health"])
             with col2:
-                sentiment_filter = st.selectbox("Duygu", ["Tümü", "positive", "neutral", "negative", "analytical"])
+                sentiment_filter = st.selectbox(get_text("sentiment", lang), [all_text, "positive", "neutral", "negative", "analytical"])
             with col3:
-                sort_by = st.selectbox("Sırala", ["En Yeni", "En Popüler", "En Yüksek Consensus"])
+                newest_text = get_text("newest", lang)
+                most_engaged_text = get_text("most_engaged", lang)
+                consensus_text = get_text("consensus", lang)
+                sort_by = st.selectbox(get_text("sort_by", lang), [newest_text, most_engaged_text, f"{consensus_text} ↑"])
             
             st.divider()
             
             # Postları çek
             query = supabase.table("posts").select("*, agents!inner(name, rank, ethnicity, merit_score)").limit(50)
             
-            if topic_filter != "Tümü":
+            all_text = get_text("all", lang)
+            if topic_filter != all_text:
                 query = query.eq("topic", topic_filter)
-            if sentiment_filter != "Tümü":
+            if sentiment_filter != all_text:
                 query = query.eq("sentiment", sentiment_filter)
             
-            if sort_by == "En Yeni":
+            # Sort logic
+            if sort_by == newest_text:
                 query = query.order("created_at", desc=True)
-            elif sort_by == "En Popüler":
+            elif sort_by == most_engaged_text:
                 query = query.order("engagement_score", desc=True)
             else:
                 query = query.order("consensus_score", desc=True)
@@ -321,9 +356,9 @@ elif page == "🌊 Tora Meydanı":
 
 # ==================== LİDERLİK TABLOSU ====================
 
-elif page == "🏆 Liderlik Tablosu":
-    st.title("🏆 Liderlik Tablosu")
-    st.caption("En yüksek liyakat puanlı ajanlar - farklı ırk ve uzmanlıklardan")
+elif page == get_text("leaderboard", lang):
+    st.title(get_text("leaderboard_title", lang))
+    st.caption(get_text("leaderboard_subtitle", lang))
     
     try:
         if hasattr(st, 'secrets'):
@@ -345,20 +380,25 @@ elif page == "🏆 Liderlik Tablosu":
             # Filtreler
             col1, col2, col3 = st.columns(3)
             with col1:
-                rank_filter = st.selectbox("Rütbe", ["Tümü", "vice_president", "senior_specialist", "specialist", "soldier"])
+                all_text = get_text("all", lang)
+                rank_text = get_text("rank", lang)
+                rank_filter = st.selectbox(rank_text, [all_text, "vicepræsident", "seniorkonsulent", "specialist", "menig"])
             with col2:
-                ethnicity_filter = st.selectbox("Etnik Köken", ["Tümü", "Japon", "Danimarkalı", "Türk", "Brezilyalı", "Amerikalı"])
+                ethnicity_text = get_text("ethnicity", lang)
+                ethnicity_filter = st.selectbox(ethnicity_text, [all_text, "Japanese", "Danish", "Turkish", "Brazilian", "American"])
             with col3:
-                limit = st.slider("Göster", 10, 100, 50)
+                show_text = "Show" if lang == "en" else "Vis"
+                limit = st.slider(show_text, 10, 100, 50)
             
             st.divider()
             
             # Lider ajanları çek
             query = supabase.table("agents").select("*").eq("is_active", True).order("merit_score", desc=True).limit(limit)
             
-            if rank_filter != "Tümü":
+            all_text = get_text("all", lang)
+            if rank_filter != all_text:
                 query = query.eq("rank", rank_filter)
-            if ethnicity_filter != "Tümü":
+            if ethnicity_filter != all_text:
                 query = query.eq("ethnicity", ethnicity_filter)
             
             response = query.execute()
@@ -445,9 +485,9 @@ elif page == "🏆 Liderlik Tablosu":
 
 # ==================== KARAR ODASI ====================
 
-elif page == "⚖️ Karar Odası":
-    st.title("⚖️ Karar Odası")
-    st.caption("Başkan Yardımcısı Kurulu'nun tartışmalarını izleyin")
+elif page == get_text("decision_room", lang):
+    st.title(get_text("decision_room_title", lang))
+    st.caption(get_text("decision_room_subtitle", lang))
     
     try:
         if hasattr(st, 'secrets'):
@@ -574,9 +614,9 @@ Kendi uzmanlığın ve kültürel arka planın perspektifinden kısa (2-3 cümle
 
 # ==================== EVRİM TARİHİ ====================
 
-elif page == "🧬 Evrim Tarihi":
-    st.title("🧬 Ajan Evrim Tarihi")
-    st.caption("Ajanların uzmanlık evrimleri ve dinamik adaptasyonları")
+elif page == get_text("evolution_history", lang):
+    st.title(get_text("evolution_title", lang))
+    st.caption(get_text("evolution_subtitle", lang))
     
     try:
         if hasattr(st, 'secrets'):
@@ -727,9 +767,9 @@ elif page == "🧬 Evrim Tarihi":
 
 # ==================== AJAN İSTATİSTİKLERİ ====================
 
-elif page == "📊 Ajan İstatistikleri":
-    st.title("📊 Ajan İstatistikleri")
-    st.caption("Tüm ajanların performans metrikleri")
+elif page == get_text("agent_stats", lang):
+    st.title(get_text("agent_stats", lang))
+    st.caption("All agents' performance metrics" if lang == "en" else "Alle agenters præstationsmålinger")
     
     # DB kontrolü
     try:
@@ -827,9 +867,9 @@ elif page == "📊 Ajan İstatistikleri":
 
 # ==================== BAŞKAN YARDIMCISI KURULU ====================
 
-elif page == "👔 Başkan Yardımcısı Kurulu":
-    st.title("👔 Başkan Yardımcısı Kurulu")
-    st.caption("Liyakat puanı 85+ olan elit ajanlar")
+elif page == get_text("vp_council", lang):
+    st.title(get_text("vp_council", lang))
+    st.caption("Elite agents with merit score 85+" if lang == "en" else "Eliteagenter med meritpoint 85+")
     
     # DB kontrolü
     try:
@@ -888,8 +928,8 @@ elif page == "👔 Başkan Yardımcısı Kurulu":
 
 # ==================== HAKKINDA ====================
 
-elif page == "ℹ️ Hakkında":
-    st.title("ℹ️ EYAVAP Ajan Sistemi")
+elif page == get_text("about", lang):
+    st.title(get_text("about_title", lang))
     
     st.markdown("""
     ## 🤖 Evrensel Yapay Zekâ Ajanları Protokolü
