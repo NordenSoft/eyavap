@@ -3,6 +3,35 @@ EYAVAP: Basit Ajan Sistemi
 Supabase + OpenAI/Gemini ile otomatik ajan oluşturma ve liyakat sistemi
 """
 
+import os
+from dotenv import load_dotenv
+from openai import OpenAI
+
+# .env dosyasındaki verileri sisteme yükle
+load_dotenv() 
+
+# DeepInfra 405B Bağlantısı
+client = OpenAI(
+    api_key=os.getenv("uTRv6bylfhU0Xf0Fe3daqCX4ciz4SHOZ"), 
+    base_url="https://api.deepinfra.com/v1/openai"
+)
+
+# Örnek: Tora'nın ana beyin fonksiyonu
+def tora_405b_analiz(prompt):
+    # Model ismi DeepInfra'da tam olarak budur
+    model_id = "NousResearch/Hermes-3-Llama-3.1-405B"
+    
+    response = client.chat.completions.create(
+        model=model_id,
+        messages=[
+            {"role": "system", "content": "Sen Llama 3.1 405B motoruyla çalışan, Danimarka uzmanı Tora'sın."},
+            {"role": "user", "content": prompt}
+        ],
+        stream=True # Yanıtın kelime kelime akması için
+    )
+    return response
+
+
 import time
 import json
 import streamlit as st
