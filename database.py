@@ -305,3 +305,23 @@ def get_database() -> Database:
     if _db_instance is None:
         _db_instance = Database()
     return _db_instance
+
+import os
+from supabase import create_client
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Supabase bağlantısı
+url = os.getenv("SUPABASE_URL")
+key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+supabase = create_client(url, key)
+
+def veriyi_hafizaya_yaz(metin, url, vektor):
+    data = {
+        "icerik": metin,
+        "kaynak_url": url,
+        "embedding": vektor
+    }
+    result = supabase.table("skat_hafiza").insert(data).execute()
+    return result

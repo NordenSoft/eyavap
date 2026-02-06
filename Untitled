@@ -1,1 +1,35 @@
-git add .
+import scrapy
+from scrapy.spiders import CrawlSpider, Rule
+from scrapy.linkextractors import LinkExtractor
+from database import veriyi_hafizaya_yaz  # Az önce kurduğumuz köprü
+
+class SkatSpider(CrawlSpider):
+    name = "skat_orumcegi"
+    allowed_domains = ["skat.dk"]
+    start_urls = [
+        "https://skat.dk/borger", # Bireysel vergi ana sayfası
+        "https://skat.dk/erhverv"  # İşletme vergi ana sayfası
+    ]
+
+    # Sadece vergi rehberlerini ve kuralları takip etmesi için kural koyuyoruz
+    rules = (
+        Rule(LinkExtractor(allow=("/borger/", "/erhverv/")), callback="parse_item", follow=True),
+    )
+
+    def parse_item(self, response):
+        # Sayfadaki ana metni yakala
+        baslik = response.css('h1::text').get()
+        metin_parcalari = response.css('main p::text, main h2::text, main li::text').getall()
+        tam_metin = " ".join(metin_parcalari).strip()
+
+        if len(tam_metin) > 100: # Boş sayfaları atla
+            print(f"✅ Tarandı: {baslik}")
+            
+            # TODO: Buraya vektörleme (embedding) eklenecek
+            # Şimdilik düz metin olarak kaydediyoruz (Hafıza Testi)
+            # veriyi_hafizaya_yaz(tam_metin, response.url, None)
+            
+        return {
+            'url': response.url,
+            'title': baslik
+        }
