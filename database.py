@@ -13,28 +13,33 @@ class Database:
     """EYAVAP Komuta Merkezi: Supabase Veritabanı ve Hafıza İşlemleri"""
     
     def __init__(self):
-        """Bağlantıyı hem Bulut (GitHub Actions) hem Arayüz (Streamlit) için akıllıca başlatır"""
+        """Hangi anahtarın eksik olduğunu raporlayan akıllı başlatıcı"""
+        # Değerleri ortamdan çek
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         
-        # 🛡️ STRATEJİ 1: GitHub Actions / Ortam Değişkenleri (Öncelikli)
-        # Bulut sunucusu (Runner) buraya bakar.
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+        # --- İSTİHBARAT RAPORU ---
+        if not url:
+            print("🚨 RAPOR: 'SUPABASE_URL' bulunamadı!")
+        if not key:
+            print("🚨 RAPOR: 'SUPABASE_KEY' veya 'SUPABASE_SERVICE_ROLE_KEY' bulunamadı!")
         
-        # 🛡️ STRATEJİ 2: Streamlit Secrets (Arayüz tarafı için yedek)
-        # Eğer yukarıdaki bulunamazsa (Streamlit arayüzünde çalışıyorsak) buraya girer.
-        if not supabase_url or not supabase_key:
+        # Eğer hala yoksa Streamlit Secrets'a bak (Sadece yerel testler için)
+        if not url or not key:
             try:
-                if hasattr(st, 'secrets') and "SUPABASE_URL" in st.secrets:
-                    supabase_url = st.secrets["SUPABASE_URL"]
-                    supabase_key = st.secrets.get("SUPABASE_SERVICE_ROLE_KEY") or st.secrets.get("SUPABASE_KEY")
-            except Exception:
-                # Streamlit secrets erişilemezse hata fırlatmadan devam et (Actions ortamı için)
+                if hasattr(st, 'secrets'):
+                    url = url or st.secrets.get("SUPABASE_URL")
+                    key = key or st.secrets.get("SUPABASE_SERVICE_ROLE_KEY") or st.secrets.get("SUPABASE_KEY")
+            except:
                 pass
+
+        if not url or not key:
+            missing = []
+            if not url: missing.append("URL")
+            if not key: missing.append("KEY")
+            raise ValueError(f"❌ HATA: Şu mühimmatlar eksik: {', '.join(missing)}")
         
-        if not supabase_url or not supabase_key:
-            raise ValueError("❌ HATA: Supabase anahtarları bulunamadı! GitHub Secrets veya .env kontrol edilmeli.")
-        
-        self.client: Client = create_client(supabase_url, supabase_key)
+        self.client: Client = create_client(url, key)
 
     # ==================== RAG / SPIDER İŞLEMLERİ ====================
 
