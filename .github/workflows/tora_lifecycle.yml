@@ -26,8 +26,12 @@ jobs:
         run: |
           python3 -c "
           import os
-          os.environ['SUPABASE_URL'] = os.getenv('SUPABASE_URL', '')
-          os.environ['SUPABASE_KEY'] = os.getenv('SUPABASE_KEY', '')
+          # Tırnak işaretlerini tam olarak böyle kullanın
+          os.environ['SUPABASE_URL'] = '${{ secrets.SUPABASE_URL }}'
+          os.environ['SUPABASE_SERVICE_ROLE_KEY'] = '${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}'
+          os.environ['SUPABASE_KEY'] = '${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}'
+          
+          from spawn_system import spawn_agents
           
           # 1. Spawn new agents (10 per run = 60/day)
           from spawn_system import spawn_agents
