@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           pip install -r requirements.txt
 
@@ -25,5 +25,4 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DEEPINFRA_API_TOKEN: ${{ secrets.DEEPINFRA_API_TOKEN }}
-        # Sunucuya projenin ana dizininde spider.py'yi bulup çalıştırmasını söylüyoruz
-        run: python3 ./spider.py
+        run: python3 spider.py
