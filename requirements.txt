@@ -1,10 +1,8 @@
 streamlit
-openai
-google-generativeai
+pandas
+plotly
 supabase
 python-dotenv
-requests
-pandas
-gspread
-oauth2client
-feedparser
+openai
+scrapy
+httpx
