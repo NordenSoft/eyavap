@@ -20,7 +20,6 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          DEEPINFRA_API_TOKEN: ${{ secrets.DEEPINFRA_API_TOKEN }}
           # 🦙 Llama Hattı (DeepInfra):
           DEEPINFRA_API_TOKEN: ${{ secrets.DEEPINFRA_API_TOKEN }}
         run: |
