@@ -296,32 +296,43 @@ class Database:
             return {}
 
 
-# Global instance
-_db_instance: Optional[Database] = None
-
-def get_database() -> Database:
-    """Singleton database instance"""
-    global _db_instance
-    if _db_instance is None:
-        _db_instance = Database()
-    return _db_instance
-
+import streamlit as st
+import pandas as pd
 import os
-from supabase import create_client
+from datetime import datetime
 from dotenv import load_dotenv
+from supabase import create_client
 
+# Çevresel değişkenleri yükle
 load_dotenv()
 
-# Supabase bağlantısı
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-supabase = create_client(url, key)
+# --- BAĞLANTI AYARLARI ---
+def init_connection():
+    supa_url = os.getenv("SUPABASE_URL")
+    supa_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") # Service role key yetki için şarttır
+    
+    if not supa_url or not supa_key:
+        st.error("❌ HATA: .env dosyasında Supabase bilgileri eksik!")
+        return None
+    return create_client(supa_url, supa_key)
 
-def veriyi_hafizaya_yaz(metin, url, vektor):
-    data = {
-        "icerik": metin,
-        "kaynak_url": url,
-        "embedding": vektor
-    }
-    result = supabase.table("skat_hafiza").insert(data).execute()
-    return result
+supabase = init_connection()
+
+# --- ÖRÜMCEK İÇİN KAYIT FONKSİYONU ---
+def veriyi_hafizaya_yaz(metin, kaynak_url, vektor):
+    """Spider'dan gelen veriyi Supabase'e mühürler"""
+    try:
+        data = {
+            "icerik": metin,
+            "kaynak_url": kaynak_url,
+            "embedding": vektor
+        }
+        supabase.table("skat_hafiza").insert(data).execute()
+        print(f"✅ Hafızaya mühürlendi: {kaynak_url}")
+    except Exception as e:
+        print(f"❌ Kayıt hatası: {e}")
+
+# --- DASHBOARD ARAYÜZÜ ---
+if __name__ == "__main__" and supabase:
+    st.title("🤖 EYAVAP: Komuta Merkezi")
+    # Buraya dashboard kodlarını (metrikler, tablolar) eklemeye devam edebilirsiniz
