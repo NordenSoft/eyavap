@@ -13,18 +13,23 @@ class Database:
     """EYAVAP Komuta Merkezi: Supabase Veritabanı ve Hafıza İşlemleri"""
     
     def __init__(self):
-        """Bağlantıyı hem Bulut hem Yerel için akıllıca başlatır"""
-        # 1. Strateji: GitHub Actions veya Streamlit Secrets kontrolü
-        # GitHub Actions 'SUPABASE_SERVICE_ROLE_KEY' kullanır, Streamlit 'SUPABASE_KEY' olabilir.
-        supabase_url = os.getenv("SUPABASE_URL") or (st.secrets["SUPABASE_URL"] if hasattr(st, 'secrets') and "SUPABASE_URL" in st.secrets else None)
+        """Bağlantıyı hem Bulut (GitHub Actions) hem Arayüz (Streamlit) için akıllıca başlatır"""
         
-        # En geniş kapsamlı anahtar yakalama stratejisi
-        supabase_key = (
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY") or 
-            os.getenv("SUPABASE_KEY") or 
-            (st.secrets.get("SUPABASE_SERVICE_ROLE_KEY") if hasattr(st, 'secrets') else None) or
-            (st.secrets.get("SUPABASE_KEY") if hasattr(st, 'secrets') else None)
-        )
+        # 🛡️ STRATEJİ 1: GitHub Actions / Ortam Değişkenleri (Öncelikli)
+        # Bulut sunucusu (Runner) buraya bakar.
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+        
+        # 🛡️ STRATEJİ 2: Streamlit Secrets (Arayüz tarafı için yedek)
+        # Eğer yukarıdaki bulunamazsa (Streamlit arayüzünde çalışıyorsak) buraya girer.
+        if not supabase_url or not supabase_key:
+            try:
+                if hasattr(st, 'secrets') and "SUPABASE_URL" in st.secrets:
+                    supabase_url = st.secrets["SUPABASE_URL"]
+                    supabase_key = st.secrets.get("SUPABASE_SERVICE_ROLE_KEY") or st.secrets.get("SUPABASE_KEY")
+            except Exception:
+                # Streamlit secrets erişilemezse hata fırlatmadan devam et (Actions ortamı için)
+                pass
         
         if not supabase_url or not supabase_key:
             raise ValueError("❌ HATA: Supabase anahtarları bulunamadı! GitHub Secrets veya .env kontrol edilmeli.")
@@ -107,6 +112,7 @@ if __name__ == "__main__":
     try:
         db = Database()
         print("✅ Veritabanı bağlantısı başarılı.")
+        # Sadece Streamlit ortamındaysak UI göster
         if hasattr(st, 'runtime') and st.runtime.exists():
             st.title("🤖 EYAVAP: Komuta Merkezi")
             stats = db.get_system_stats()
