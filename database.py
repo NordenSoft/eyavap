@@ -1,9 +1,7 @@
 import os
 import sys
-import json
-import random
 from datetime import datetime
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from urllib.parse import urlparse
 
 import requests
@@ -20,6 +18,40 @@ from supabase import create_client, Client
 # Lokal için .env (GitHub Actions'ta env zaten gelir, bu zararsız)
 load_dotenv()
 
+# =========================
+#  HELPERS
+# =========================
+
+def _get_secret(name: str, default: str = "") -> str:
+    """ENV'den al, yoksa Streamlit secrets'a bak. Her zaman strip yap."""
+    val = os.getenv(name, default)
+    if (not val) and st is not None:
+        try:
+            val = st.secrets.get(name, default)
+        except Exception:
+            val = default
+    return (str(val) if val is not None else "").strip()
+
+
+def _get_deepinfra_token() -> str:
+    """
+    DeepInfra token için birden fazla isimden okumayı destekler.
+    Senin secrets listende: DEEPINFRA_API_TOKEN var.
+    """
+    # Öncelik sırası: env -> streamlit secrets
+    for key in ["DEEPINFRA_API_TOKEN", "DEEPINFRA_API_TOKEN", "DEEPINFRA_API_TOKEN"]:
+        tok = _get_secret(key, "")
+        if tok:
+            return tok
+    return ""
+
+
+def _safe_host(url: str) -> str:
+    try:
+        return urlparse(url).netloc
+    except Exception:
+        return ""
+
 
 # =========================
 #  LLM CLIENTS (LLAMA + OPENAI FALLBACK)
@@ -30,7 +62,8 @@ DEEPINFRA_CHAT_URL = "https://api.deepinfra.com/v1/openai/chat/completions"
 
 def llama_chat(
     messages: List[Dict[str, str]],
-    model: str = "meta-llama/Meta-Llama-3.1-70B-Instruct",
+    # Daha güvenli / ucuz default. İstersen 70B'ye yükseltirsin.
+    model: str = "meta-llama/Llama-3-8B-Instruct",
     temperature: float = 0.2,
     max_tokens: int = 600,
     timeout: int = 60,
@@ -39,9 +72,9 @@ def llama_chat(
     DeepInfra üzerinden Llama çağrısı.
     OpenAI uyumlu endpoint kullanır.
     """
-    token = os.getenv("DEEPINFRA_API_TOKEN", "").strip()
+    token = _get_deepinfra_token()
     if not token:
-        raise ValueError("DEEPINFRA_API_TOKEN yok")
+        raise ValueError("DeepInfra token yok. Secret adı: DEEPINFRA_API_TOKEN olmalı.")
 
     headers = {
         "Authorization": f"Bearer {token}",
@@ -59,7 +92,6 @@ def llama_chat(
     r.raise_for_status()
     data = r.json()
 
-    # OpenAI formatı
     return data["choices"][0]["message"]["content"]
 
 
@@ -72,7 +104,7 @@ def openai_chat(
     """
     OpenAI fallback. openai paketi yüklü olmalı.
     """
-    key = os.getenv("OPENAI_API_KEY", "").strip()
+    key = _get_secret("OPENAI_API_KEY", "")
     if not key:
         raise ValueError("OPENAI_API_KEY yok")
 
@@ -130,51 +162,31 @@ class Database:
     """EYAVAP Komuta Merkezi: Supabase + hafıza + log"""
 
     def __init__(self):
-        # 1) ENV'den al
-        url = os.getenv("SUPABASE_URL", "").strip()
-        key = (os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", "")).strip()
+        url = _get_secret("SUPABASE_URL", "")
+        key = _get_secret("SUPABASE_SERVICE_ROLE_KEY", "") or _get_secret("SUPABASE_KEY", "")
 
-        # Llama token
-        self.llama_key = os.getenv("DEEPINFRA_API_TOKEN", "").strip()
-        self.openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+        self.llama_key = _get_deepinfra_token()
+        self.openai_key = _get_secret("OPENAI_API_KEY", "")
 
-        # 2) Streamlit secrets fallback (Streamlit ortamında)
-        if (not url or not key) and st is not None:
-            try:
-                url = url or str(st.secrets.get("SUPABASE_URL", "")).strip()
-                key = key or str(st.secrets.get("SUPABASE_SERVICE_ROLE_KEY", "")).strip() or str(st.secrets.get("SUPABASE_KEY", "")).strip()
-                self.llama_key = self.llama_key or str(st.secrets.get("DEEPINFRA_API_TOKEN", "")).strip()
-                self.openai_key = self.openai_key or str(st.secrets.get("OPENAI_API_KEY", "")).strip()
-            except Exception:
-                pass
-
-        # Rapor (URL'yi tam basma, sadece host)
+        # --- RAPOR (güvenli) ---
         if url:
-            try:
-                host = urlparse(url).netloc
-                print(f"✅ SUPABASE HOST: {host}")
-            except Exception:
-                pass
+            print(f"✅ SUPABASE HOST: {_safe_host(url)}")
         else:
             print("🚨 RAPOR: 'SUPABASE_URL' bulunamadı!")
 
         if not key:
             print("🚨 RAPOR: 'SUPABASE_SERVICE_ROLE_KEY' / 'SUPABASE_KEY' bulunamadı!")
 
-        if self.llama_key:
-            print("✅ RAPOR: Llama (DeepInfra) token hazır.")
-        else:
-            print("⚠️ RAPOR: DEEPINFRA_API_TOKEN yok (Llama çalışmaz).")
-
-        if self.openai_key:
-            print("✅ RAPOR: OpenAI token hazır.")
-        else:
-            print("⚠️ RAPOR: OPENAI_API_KEY yok (fallback çalışmaz).")
+        # Token uzunluğu: tokenı ifşa etmez, sadece var mı yok mu gösterir
+        print(f"🦙 DeepInfra token length: {len(self.llama_key)}")
+        print(f"🔑 OpenAI key length: {len(self.openai_key)}")
 
         if not url or not key:
             missing = []
-            if not url: missing.append("SUPABASE_URL")
-            if not key: missing.append("SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY")
+            if not url:
+                missing.append("SUPABASE_URL")
+            if not key:
+                missing.append("SUPABASE_SERVICE_ROLE_KEY/SUPABASE_KEY")
             raise ValueError(f"❌ HATA: Eksik ortam değişkenleri: {', '.join(missing)}")
 
         # Supabase client
@@ -234,7 +246,6 @@ class Database:
             agents = self.get_all_agents()
             total_queries = sum(a.get("total_queries", 0) for a in agents)
             total_success = sum(a.get("successful_queries", 0) for a in agents)
-
             return {
                 "total_agents": len(agents),
                 "active_agents": len([a for a in agents if a.get("is_active")]),
@@ -245,15 +256,11 @@ class Database:
             print(f"❌ İstatistik hatası: {e}")
             return {}
 
-    # ==================== AI HELPERS (optional) ====================
+    # ==================== AI HELPERS ====================
 
-    def answer_with_llama_first(self, user_query: str) -> str:
-        """
-        Bu fonksiyon: Llama -> OpenAI fallback.
-        İstersen agentlarında bunu çağır.
-        """
-        result = ai_answer(user_query, llama_first=True)
-        return result["text"]
+    def answer_with_llama_first(self, user_query: str) -> Dict[str, Any]:
+        """Llama -> OpenAI fallback. provider'ı da döndürür."""
+        return ai_answer(user_query, llama_first=True)
 
 
 # ==================== KÖPRÜLER (workflow'un aradığı fonksiyonlar) ====================
@@ -274,11 +281,10 @@ if __name__ == "__main__":
         db = Database()
         print("✅ Veritabanı bağlantısı başarılı.")
 
-        # mini test: Llama-first cevap
         q = "Danimarka'da vergi borcum var mı nasıl öğrenirim?"
-        out = ai_answer(q, llama_first=True)
+        out = db.answer_with_llama_first(q)
         print(f"🤖 Provider: {out['provider']}")
-        print(out["text"][:600])
+        print(out["text"][:700])
 
     except Exception as e:
         print(f"❌ HATA: {e}")
