@@ -14,18 +14,20 @@ class Database:
     
     def __init__(self):
         """Bağlantıyı hem Bulut hem Yerel için akıllıca başlatır"""
-        # 1. Strateji: Streamlit Cloud Secrets (eyavap.streamlit.app)
-        if hasattr(st, 'secrets') and "SUPABASE_URL" in st.secrets:
-            supabase_url = st.secrets["SUPABASE_URL"]
-            # Bulutta SERVICE_ROLE_KEY yoksa KEY'i kullan
-            supabase_key = st.secrets.get("SUPABASE_SERVICE_ROLE_KEY") or st.secrets.get("SUPABASE_KEY")
-        else:
-            # 2. Strateji: Yerel .env (MacBook Air / Cursor Terminal)
-            supabase_url = os.getenv("SUPABASE_URL")
-            supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+        # 1. Strateji: GitHub Actions veya Streamlit Secrets kontrolü
+        # GitHub Actions 'SUPABASE_SERVICE_ROLE_KEY' kullanır, Streamlit 'SUPABASE_KEY' olabilir.
+        supabase_url = os.getenv("SUPABASE_URL") or (st.secrets["SUPABASE_URL"] if hasattr(st, 'secrets') and "SUPABASE_URL" in st.secrets else None)
+        
+        # En geniş kapsamlı anahtar yakalama stratejisi
+        supabase_key = (
+            os.getenv("SUPABASE_SERVICE_ROLE_KEY") or 
+            os.getenv("SUPABASE_KEY") or 
+            (st.secrets.get("SUPABASE_SERVICE_ROLE_KEY") if hasattr(st, 'secrets') else None) or
+            (st.secrets.get("SUPABASE_KEY") if hasattr(st, 'secrets') else None)
+        )
         
         if not supabase_url or not supabase_key:
-            raise ValueError("❌ HATA: Supabase anahtarları bulunamadı! .env veya Secrets kontrol edilmeli.")
+            raise ValueError("❌ HATA: Supabase anahtarları bulunamadı! GitHub Secrets veya .env kontrol edilmeli.")
         
         self.client: Client = create_client(supabase_url, supabase_key)
 
@@ -39,7 +41,6 @@ class Database:
                 "kaynak_url": kaynak_url,
                 "embedding": vektor
             }
-            # Tablo isminin 'skat_hafiza' olduğunu doğrulayın
             self.client.table("skat_hafiza").insert(data).execute()
             print(f"✅ Hafızaya mühürlendi: {kaynak_url}")
         except Exception as e:
@@ -90,25 +91,28 @@ class Database:
             print(f"❌ İstatistik hatası: {e}")
             return {}
 
-# --- ÖRÜMCEK (SPIDER) İÇİN KÖPRÜ FONKSİYON ---
-# spider.py'nin 'from database import veriyi_hafizaya_yaz' şeklinde çalışmasını sağlar
+# ==================== SİSTEM KÖPRÜLERİ (KRİTİK) ====================
+
+def get_database():
+    """Tora Legion Lifecycle'ın aradığı ana bağlantı köprüsü"""
+    return Database()
+
 def veriyi_hafizaya_yaz(metin, kaynak_url, vektor):
+    """Spider'ın aradığı doğrudan yazma fonksiyonu"""
     db = Database()
     db.veriyi_hafizaya_yaz(metin, kaynak_url, vektor)
 
-# --- DASHBOARD ARAYÜZÜ TEST ---
+# ==================== DASHBOARD TEST ====================
 if __name__ == "__main__":
     try:
         db = Database()
-        st.title("🤖 EYAVAP: Komuta Merkezi")
-        stats = db.get_system_stats()
-        
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Toplam Ajan", stats["total_agents"])
-        c2.metric("Sistem Sorgu", stats["total_queries"])
-        c3.metric("Başarı Oranı", f"%{stats['success_rate']}")
-        
-        st.write("### Aktif Ajanlar")
-        st.table(pd.DataFrame(db.get_all_agents()))
+        print("✅ Veritabanı bağlantısı başarılı.")
+        if hasattr(st, 'runtime') and st.runtime.exists():
+            st.title("🤖 EYAVAP: Komuta Merkezi")
+            stats = db.get_system_stats()
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Toplam Ajan", stats["total_agents"])
+            c2.metric("Sistem Sorgu", stats["total_queries"])
+            c3.metric("Başarı Oranı", f"%{stats['success_rate']}")
     except Exception as e:
-        st.error(f"Sistem başlatılamadı: {e}")
+        print(f"❌ HATA: {e}")
