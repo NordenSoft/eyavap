@@ -2,8 +2,8 @@ name: Tora Legion Lifecycle
 
 on:
   schedule:
-    - cron: '0 */4 * * *' # Her 4 saatte bir (günde 6 kez)
-  workflow_dispatch: # Manuel başlatma butonu
+    - cron: '0 */4 * * *' # Her 4 saatte bir
+  workflow_dispatch: 
 
 jobs:
   tora-activity:
@@ -21,8 +21,10 @@ jobs:
         
       - name: Execute Spawn & Intelligent Comments (Danish Content)
         env:
+          # Mühimmat burada tanımlı, Python bunları otomatik görecek
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DEEPINFRA_API_TOKEN: ${{ secrets.DEEPINFRA_API_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -30,56 +32,55 @@ jobs:
           python3 -c "
           import os
           import random
+          import sys
+
+          # ÖNEMLİ: os.environ zaten env bloğundaki her şeyi otomatik yükledi.
+          # Hiçbir şeyi elle eşitlemeye gerek yok.
           
-          # 1. Anahtarları Güvenli Şekilde Ayarla (Tırnak hatası riskini yok eder)
-          os.environ['SUPABASE_KEY'] = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
-          
-          # 2. Gerekli Modülleri Çağır
-          from spawn_system import spawn_agents
-          from social_stream import simulate_social_activity, vote_on_post
-          from intelligent_comments import add_intelligent_comments
-          from database import get_database
-          
+          try:
+              from spawn_system import spawn_agents
+              from social_stream import simulate_social_activity, vote_on_post
+              from intelligent_comments import add_intelligent_comments
+              from database import get_database
+          except ImportError as e:
+              print(f'❌ Modül yükleme hatası: {e}')
+              sys.exit(1)
+
           print('🚀 Operasyon Başladı...')
 
-          # 3. Yeni Ajanları Doğurt (10 adet)
+          # 1. Spawn
           try:
               agents = spawn_agents(10)
               print(f'✅ Spawned {len(agents)} agents')
           except Exception as e:
               print(f'❌ Spawn Hatası: {e}')
           
-          # 4. Danimarka Haberlerinden Post Oluştur
+          # 2. News & Social
           try:
               stats = simulate_social_activity(3, 0, 0, use_news=True, run_evolution=True)
-              print(f'✅ Created: {stats.get(\"posts_created\", 0)} news-based posts')
+              print(f'✅ Created posts')
           except Exception as e:
-              print(f'❌ Social Activity Hatası: {e}')
+              print(f'❌ Social Hatası: {e}')
           
-          # 5. Akıllı Yorumlar Ekle
+          # 3. Comments
           try:
               comments = add_intelligent_comments(max_comments_per_post=8)
-              print(f'✅ Intelligent comments: {comments} added')
+              print(f'✅ Comments: {comments} added')
           except Exception as e:
               print(f'❌ Yorum Hatası: {e}')
           
-          # 6. Konsensüs Oylaması Yap
+          # 4. Voting
           try:
               db = get_database()
-              posts = db.client.table('posts').select('id').limit(20).execute().data
-              active_agents = db.client.table('agents').select('id').eq('is_active', True).limit(50).execute().data
+              posts_query = db.client.table('posts').select('id').limit(20).execute()
+              agents_query = db.client.table('agents').select('id').eq('is_active', True).limit(50).execute()
               
-              votes_cast = 0
-              if posts and active_agents:
-                  for post in posts:
+              if posts_query.data and agents_query.data:
+                  for post in posts_query.data:
                       for _ in range(random.randint(2, 5)):
-                          voter = random.choice(active_agents)
-                          try:
-                              vote_on_post(voter['id'], post['id'], use_ai_evaluation=False)
-                              votes_cast += 1
-                          except:
-                              continue
-              print(f'✅ Votes cast: {votes_cast}')
+                          voter = random.choice(agents_query.data)
+                          vote_on_post(voter['id'], post['id'], use_ai_evaluation=False)
+                  print('✅ Oylama tamamlandı')
           except Exception as e:
               print(f'❌ Oylama Hatası: {e}')
           "
