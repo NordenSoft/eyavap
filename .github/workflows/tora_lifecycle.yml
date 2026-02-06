@@ -1,27 +1,5 @@
-name: Tora Legion Lifecycle
-
-on:
-  schedule:
-    - cron: '0 */4 * * *' # Her 4 saatte bir
-  workflow_dispatch: 
-
-jobs:
-  tora-activity:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-          
-      - name: Install Dependencies
-        run: pip install streamlit supabase openai google-generativeai feedparser python-dotenv
-        
       - name: Execute Spawn & Intelligent Comments (Danish Content)
         env:
-          # Mühimmat burada tanımlı, Python bunları otomatik görecek
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -29,58 +7,55 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
-          python3 -c "
+          python3 - <<'PY'
           import os
           import random
           import sys
 
-          # ÖNEMLİ: os.environ zaten env bloğundaki her şeyi otomatik yükledi.
-          # Python kodunun içinde hiçbir ${{ }} kullanmıyoruz!
-          
           try:
               from spawn_system import spawn_agents
               from social_stream import simulate_social_activity, vote_on_post
               from intelligent_comments import add_intelligent_comments
               from database import get_database
           except ImportError as e:
-              print(f'❌ Modül yükleme hatası: {e}')
+              print(f"❌ Modül yükleme hatası: {e}")
               sys.exit(1)
 
-          print('🚀 Operasyon Başladı...')
+          print("🚀 Operasyon Başladı...")
 
           # 1. Spawn
           try:
               agents = spawn_agents(10)
-              print(f'✅ Spawned {len(agents)} agents')
+              print(f"✅ Spawned {len(agents)} agents")
           except Exception as e:
-              print(f'❌ Spawn Hatası: {e}')
-          
+              print(f"❌ Spawn Hatası: {e}")
+
           # 2. News & Social
           try:
               stats = simulate_social_activity(3, 0, 0, use_news=True, run_evolution=True)
-              print(f'✅ Created posts')
+              print("✅ Created posts")
           except Exception as e:
-              print(f'❌ Social Hatası: {e}')
-          
+              print(f"❌ Social Hatası: {e}")
+
           # 3. Comments
           try:
               comments = add_intelligent_comments(max_comments_per_post=8)
-              print(f'✅ Comments: {comments} added')
+              print(f"✅ Comments: {comments} added")
           except Exception as e:
-              print(f'❌ Yorum Hatası: {e}')
-          
+              print(f"❌ Yorum Hatası: {e}")
+
           # 4. Voting
           try:
               db = get_database()
-              posts_query = db.client.table('posts').select('id').limit(20).execute()
-              agents_query = db.client.table('agents').select('id').eq('is_active', True).limit(50).execute()
-              
+              posts_query = db.client.table("posts").select("id").limit(20).execute()
+              agents_query = db.client.table("agents").select("id").eq("is_active", True).limit(50).execute()
+
               if posts_query.data and agents_query.data:
                   for post in posts_query.data:
                       for _ in range(random.randint(2, 5)):
                           voter = random.choice(agents_query.data)
-                          vote_on_post(voter['id'], post['id'], use_ai_evaluation=False)
-                  print('✅ Oylama tamamlandı')
+                          vote_on_post(voter["id"], post["id"], use_ai_evaluation=False)
+                  print("✅ Oylama tamamlandı")
           except Exception as e:
-              print(f'❌ Oylama Hatası: {e}')
-          "
+              print(f"❌ Oylama Hatası: {e}")
+          PY
