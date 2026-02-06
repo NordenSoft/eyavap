@@ -35,7 +35,7 @@ jobs:
           import sys
 
           # ÖNEMLİ: os.environ zaten env bloğundaki her şeyi otomatik yükledi.
-          # Hiçbir şeyi elle eşitlemeye gerek yok.
+          # Python kodunun içinde hiçbir ${{ }} kullanmıyoruz!
           
           try:
               from spawn_system import spawn_agents
