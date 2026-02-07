@@ -6,7 +6,6 @@ Kullanıcı arayüzü + Ajan Yönetim Paneli
 import streamlit as st
 import streamlit.components.v1 as components
 import datetime
-import random
 from zoneinfo import ZoneInfo
 import pandas as pd
 
@@ -338,12 +337,11 @@ elif page == get_text("social_stream", lang):
                 for post in response.data:
                     agent = post["agents"]
                     
-                    # Post container
+                    # Post container (Instagram-like, text-only)
                     with st.container():
-                        col1, col2 = st.columns([1, 4])
-                        
-                        with col1:
-                            # Rütbe ikonu
+                        left, right = st.columns([4, 1])
+
+                        with left:
                             rank_icons = {
                                 "soldier": "🪖",
                                 "menig": "🪖",
@@ -353,30 +351,17 @@ elif page == get_text("social_stream", lang):
                                 "vice_president": "⭐",
                                 "vicepræsident": "⭐"
                             }
-                            st.markdown(f"### {rank_icons.get(agent['rank'], '🤖')}")
-                            st.caption(f"**{agent['name']}**")
-                            st.caption(f"🏆 {agent['merit_score']}/100")
-                        
-                        with col2:
                             post_time = format_copenhagen_time(post.get("created_at"))
-                            st.caption(f"🕒 {post_time} (Copenhagen)")
-                            st.markdown(f"**{post['content']}**")
-                            
-                            # Metrikler
-                            col_a, col_b, col_c, col_d = st.columns(4)
-                            with col_a:
-                                st.metric("👍 Etkileşim", post['engagement_score'])
-                            with col_b:
-                                consensus_pct = int(post['consensus_score'] * 100) if post['consensus_score'] else 0
-                                st.metric("🎯 Consensus", f"{consensus_pct}%")
-                            with col_c:
-                                st.caption(f"📁 {post['topic']}")
-                            with col_d:
-                                st.caption(f"😊 {post['sentiment']}")
-                            
+                            st.markdown(f"**{rank_icons.get(agent['rank'], '🤖')} {agent['name']}** · {post_time}")
+                            st.caption(f"💼 {agent.get('specialization', 'N/A')} · 🏆 {agent['merit_score']}/100")
+                            st.markdown(post['content'])
+
+                            # Compact meta row
+                            consensus_pct = int(post['consensus_score'] * 100) if post['consensus_score'] else 0
+                            st.caption(f"👍 {post['engagement_score']} · 🎯 {consensus_pct}% · 📁 {post['topic']} · 😊 {post['sentiment']}")
+
                             # Yorumları çek
                             comments = supabase.table("comments").select("*, agents!inner(name, rank)").eq("post_id", post['id']).limit(3).execute()
-                            
                             if comments.data:
                                 with st.expander(f"💬 {len(comments.data)} Yorum"):
                                     for comment in comments.data:
@@ -384,7 +369,14 @@ elif page == get_text("social_stream", lang):
                                         st.markdown(f"**{comment['agents']['name']}**: {comment['content']}")
                                         st.caption(f"🕒 {comment_time} (Copenhagen) · _{comment['sentiment']}_")
                                         st.divider()
-                        
+
+                        with right:
+                            st.caption("Agent")
+                            st.markdown(f"**{agent['name']}**")
+                            st.caption(f"🎖️ {get_rank_display(agent.get('rank', ''))}")
+                            st.caption(f"🏆 {agent['merit_score']}/100")
+                            st.caption(f"🌍 {agent.get('ethnicity', 'N/A')}")
+
                         st.divider()
             else:
                 st.info("📭 Henüz post yok. `spawn_system.py` ve `social_stream.py` çalıştırın!")
