@@ -111,7 +111,7 @@ def analyze_and_propose_database_task():
         from google.genai import types
         
         client = genai.Client(api_key=gemini_key)
-        model_name = "gemini-2.0-flash-exp"  # Latest free model
+        model_name = "gemini-1.5-pro"  # Stable production model
     elif openai_key:
         from openai import OpenAI
         client = OpenAI(api_key=openai_key)
