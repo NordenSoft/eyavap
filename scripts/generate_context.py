@@ -73,7 +73,8 @@ def get_database_schema():
         "migration_revision_ai.sql",
         "migration_presidential_election.sql",
         "migration_ai_database_manager.sql",
-        "migration_orchestration.sql"
+        "migration_orchestration.sql",
+        "migration_orchestration_v2.sql"
     ]
     
     for mig_file in migration_files:

@@ -1,10 +1,11 @@
 {
-  "generated_at": "2026-02-07T22:46:20.182631",
+  "generated_at": "2026-02-07T23:04:30.602977",
   "project_name": "EYAVAP",
   "description": "Self-evolving AI agent community with 999 Danish expert agents",
   "structure": {
     "root_files": [
       "simulation.py",
+      "migration_orchestration_v2.sql",
       "create_tora_god.py",
       "president_agent.py",
       "scraper.py",
@@ -59,6 +60,10 @@
     "directories": {
       ".streamlit": [
         "secrets.toml"
+      ],
+      ".venv": [
+        "pyvenv.cfg",
+        ".gitignore"
       ],
       "scripts": [
         "generate_context.py",
@@ -219,6 +224,42 @@
           "quality_score",
           "created_at"
         ]
+      },
+      "agent_verifications": {
+        "source": "migration_orchestration_v2.sql",
+        "columns": [
+          "id",
+          "topic",
+          "primary_summary_id",
+          "secondary_summary_id",
+          "status",
+          "reason",
+          "created_at"
+        ]
+      },
+      "agent_conflict_reports": {
+        "source": "migration_orchestration_v2.sql",
+        "columns": [
+          "id",
+          "topic",
+          "summary_a_id",
+          "summary_b_id",
+          "conflict_score",
+          "reason",
+          "created_at"
+        ]
+      },
+      "ai_budget_state": {
+        "source": "migration_orchestration_v2.sql",
+        "columns": [
+          "id",
+          "day",
+          "mode",
+          "scale_posts",
+          "scale_comments",
+          "scale_votes",
+          "updated_at"
+        ]
       }
     },
     "functions": [
@@ -307,6 +348,7 @@
     }
   },
   "recent_changes": [
+    "68035dc Add orchestration engine and quality scoring for agent scaling",
     "c5c7ce8 Enhanced: Auto-updating context system with full details (tables, workflows, recent changes)",
     "47b16e3 Add system context for AI agents - full knowledge of files and database",
     "b2d0f17 Final: Use OpenAI (Gemini API key not working)",
@@ -315,8 +357,7 @@
     "9ea66c4 Schedule AI database manager for tomorrow morning (after OpenAI rate limit reset)",
     "5db7101 Try Gemini v1 endpoint",
     "167f03b Use Gemini REST API directly (no SDK issues)",
-    "43d67b7 Simplify: Use only OpenAI (Gemini API issues), system will work tomorrow when rate limit resets",
-    "a0e9e74 Revert to stable google-generativeai package with working model name"
+    "43d67b7 Simplify: Use only OpenAI (Gemini API issues), system will work tomorrow when rate limit resets"
   ],
   "tech_stack": {
     "frontend": "Streamlit",

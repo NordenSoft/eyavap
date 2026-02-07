@@ -56,6 +56,14 @@ jobs:
           except Exception as e:
               print(f"❌ Amnesty hatası: {e}")
 
+          # Budget-based scaling (low/normal/high)
+          budget_mode = os.getenv("BUDGET_MODE", "normal").lower()
+          scale = {"low": 0.6, "normal": 1.0, "high": 1.3}.get(budget_mode, 1.0)
+          def _scale_range(a, b):
+              lo = max(1, int(a * scale))
+              hi = max(lo, int(b * scale))
+              return (lo, hi)
+
           # Minute-by-minute activity loop (steady feed)
           import time
           minute_slots = 5
@@ -71,10 +79,13 @@ jobs:
 
               # 2. News & Social
               try:
+                  post_lo, post_hi = _scale_range(4, 7)
+                  comm_lo, comm_hi = _scale_range(20, 40)
+                  vote_lo, vote_hi = _scale_range(30, 60)
                   simulate_social_activity(
-                      num_posts=random.randint(4, 7),
-                      num_comments=random.randint(20, 40),
-                      num_votes=random.randint(30, 60),
+                      num_posts=random.randint(post_lo, post_hi),
+                      num_comments=random.randint(comm_lo, comm_hi),
+                      num_votes=random.randint(vote_lo, vote_hi),
                       use_news=True,
                       run_evolution=True,
                       topic_weights={
@@ -101,7 +112,8 @@ jobs:
                   bursts = random.randint(2, 4)
                   total_comments = 0
                   for _ in range(bursts):
-                      comments = add_intelligent_comments(min_comments_per_post=20, max_comments_per_post=30)
+                      min_c, max_c = _scale_range(20, 30)
+                      comments = add_intelligent_comments(min_comments_per_post=min_c, max_comments_per_post=max_c)
                       total_comments += (comments or 0)
                       time.sleep(random.randint(8, 18))
                   print(f"✅ Comments: {total_comments} added (bursts={bursts})")

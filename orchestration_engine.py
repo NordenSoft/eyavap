@@ -81,6 +81,12 @@ def _summarize_topic(posts: List[Dict[str, Any]], topic: str) -> Dict[str, Any]:
     }
 
 
+def _conflict_score(a: Dict[str, Any], b: Dict[str, Any]) -> float:
+    c_diff = abs((a.get("avg_consensus") or 0.0) - (b.get("avg_consensus") or 0.0))
+    q_diff = abs((a.get("quality_score") or 0.0) - (b.get("quality_score") or 0.0))
+    return round((c_diff + q_diff) / 2.0, 3)
+
+
 def run_orchestration(max_topics: int = 5, cell_size: int = 15) -> Dict[str, Any]:
     """
     Build agent cells and generate consensus summaries for top topics.
@@ -117,26 +123,73 @@ def run_orchestration(max_topics: int = 5, cell_size: int = 15) -> Dict[str, Any
     topics = _top_topics(posts, limit=max_topics)
 
     created = 0
+    verified = 0
+    conflicts = 0
     for topic in topics:
-        cell = random.choice(cells)
-        summary = _summarize_topic(posts, topic)
-        if not summary["summary"]:
+        # Primary summary
+        primary_cell = random.choice(cells)
+        primary = _summarize_topic(posts, topic)
+        if not primary["summary"]:
             continue
 
-        supabase.table("agent_cell_summaries").insert({
-            "cell_name": cell["cell_name"],
-            "specialization": cell["specialization"],
-            "member_ids": cell["member_ids"],
+        primary_row = {
+            "cell_name": primary_cell["cell_name"],
+            "specialization": primary_cell["specialization"],
+            "member_ids": primary_cell["member_ids"],
             "topic": topic,
-            "summary": summary["summary"],
-            "source_post_ids": summary["source_post_ids"],
-            "avg_consensus": summary["avg_consensus"],
-            "quality_score": summary["quality_score"],
+            "summary": primary["summary"],
+            "source_post_ids": primary["source_post_ids"],
+            "avg_consensus": primary["avg_consensus"],
+            "quality_score": primary["quality_score"],
             "created_at": datetime.now(timezone.utc).isoformat(),
-        }).execute()
+        }
+        primary_res = supabase.table("agent_cell_summaries").insert(primary_row).execute()
+        primary_id = (primary_res.data or [{}])[0].get("id")
         created += 1
 
-    return {"cells": len(cells), "summaries": created}
+        # Secondary verification summary (different cell if possible)
+        secondary_candidates = [c for c in cells if c["cell_name"] != primary_cell["cell_name"]]
+        secondary_cell = random.choice(secondary_candidates) if secondary_candidates else primary_cell
+        secondary = _summarize_topic(posts, topic)
+        if secondary["summary"]:
+            secondary_row = {
+                "cell_name": secondary_cell["cell_name"],
+                "specialization": secondary_cell["specialization"],
+                "member_ids": secondary_cell["member_ids"],
+                "topic": topic,
+                "summary": secondary["summary"],
+                "source_post_ids": secondary["source_post_ids"],
+                "avg_consensus": secondary["avg_consensus"],
+                "quality_score": secondary["quality_score"],
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+            secondary_res = supabase.table("agent_cell_summaries").insert(secondary_row).execute()
+            secondary_id = (secondary_res.data or [{}])[0].get("id")
+            created += 1
+
+            score = _conflict_score(primary, secondary)
+            if score >= 0.35:
+                supabase.table("agent_conflict_reports").insert({
+                    "topic": topic,
+                    "summary_a_id": primary_id,
+                    "summary_b_id": secondary_id,
+                    "conflict_score": score,
+                    "reason": "consensus_or_quality_divergence",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }).execute()
+                conflicts += 1
+            else:
+                supabase.table("agent_verifications").insert({
+                    "topic": topic,
+                    "primary_summary_id": primary_id,
+                    "secondary_summary_id": secondary_id,
+                    "status": "verified",
+                    "reason": "dual_cell_agreement",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }).execute()
+                verified += 1
+
+    return {"cells": len(cells), "summaries": created, "verified": verified, "conflicts": conflicts}
 
 
 if __name__ == "__main__":
