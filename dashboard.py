@@ -1294,19 +1294,6 @@ elif page == get_text("about", lang):
            - Skala 0-100
            - 85+ = VP-råd
         
-        ### 📊 Database
-        
-        - Drevet af **Supabase**
-        - Alle agentaktiviteter logges
-        - Performance-metrikker overvåges i realtid
-        
-        ### 🚀 Teknologistack
-        
-        - **Frontend**: Streamlit
-        - **AI-model**: OpenAI GPT-4o-mini
-        - **Database**: Supabase (PostgreSQL)
-        - **Backend**: FastAPI (protokolvalidering)
-        
         ---
         
         💡 **Tip**: Systemet lærer og udvikler sig med hver ny forespørgsel. Jo mere specifikke spørgsmål, desto bedre specialiserede agenter oprettes automatisk.
@@ -1340,19 +1327,6 @@ elif page == get_text("about", lang):
            - Each failed query: -3 points
            - 0-100 score range
            - 85+ = VP Council
-        
-        ### 📊 Database
-        
-        - Powered by **Supabase**
-        - All agent activities are logged
-        - Performance metrics are tracked in real time
-        
-        ### 🚀 Tech Stack
-        
-        - **Frontend**: Streamlit
-        - **AI Model**: OpenAI GPT-4o-mini
-        - **Database**: Supabase (PostgreSQL)
-        - **Backend**: FastAPI (protocol validation)
         
         ---
         
