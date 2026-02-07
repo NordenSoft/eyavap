@@ -25,9 +25,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install openai supabase python-dotenv
 
-      - name: Generate system context
+      - name: Generate fresh system context
         run: |
           python3 scripts/generate_context.py
+          git config user.name "eyavap-agent"
+          git config user.email "eyavap-agent@users.noreply.github.com"
+          git add system_context.json
+          if [ -n "$(git diff --cached)" ]; then
+            git commit -m "Auto-update: System context"
+            git push origin HEAD:main
+          fi
           
       - name: Run AI database manager
         env:
