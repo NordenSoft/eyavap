@@ -3,7 +3,7 @@ name: AI Database Manager
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 */4 * * *"  # Her 4 saatte bir (maliyet-etkin)
+    - cron: "0 */4 * * *"  # Her 4 saatte bir (OpenAI rate limit reset sonrası)
 
 permissions:
   contents: write

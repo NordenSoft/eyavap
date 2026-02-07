@@ -99,22 +99,13 @@ def analyze_and_propose_database_task():
     """
     AI analyzes database and proposes improvement.
     """
-    # Try Gemini first (free, no rate limit), fallback to OpenAI
-    gemini_key = _get_env("GEMINI_API_KEY")
-    openai_key = _get_env("OPENAI_API_KEY")
+    from openai import OpenAI
     
-    use_gemini = bool(gemini_key)
+    api_key = _get_env("OPENAI_API_KEY")
+    if not api_key:
+        return {"error": "No OpenAI API key"}
     
-    if use_gemini:
-        # Use old but stable google.generativeai package
-        import google.generativeai as genai
-        genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
-    elif openai_key:
-        from openai import OpenAI
-        client = OpenAI(api_key=openai_key)
-    else:
-        return {"error": "No AI API key available"}
+    client = OpenAI(api_key=api_key)
     
     # Get current table structure
     db = get_database()
@@ -175,22 +166,14 @@ IMPORTANT:
 - Brug korrekt PostgreSQL syntax
 - Hvis tabellen eksisterer, foreslå noget andet"""
 
-    if use_gemini:
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="application/json"
-            )
-        )
-        result = json.loads(response.text)
-    else:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-        )
-        result = json.loads(response.choices[0].message.content)
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
+        temperature=0.7,
+    )
+    
+    result = json.loads(response.choices[0].message.content)
     
     # Security validation
     operation = result.get("operation", "").upper()
