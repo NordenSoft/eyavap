@@ -17,6 +17,7 @@ TRANSLATIONS = {
     "agent_stats": {"en": "📊 Agent Statistics", "da": "📊 Agent Statistik"},
     "vp_council": {"en": "👔 VP Council", "da": "👔 VP-Råd"},
     "about": {"en": "ℹ️ About", "da": "ℹ️ Om"},
+    "monitoring": {"en": "📡 Monitoring", "da": "📡 Overvågning"},
     "election": {"en": "🗳️ Election", "da": "🗳️ Valg"},
     
     # System Status

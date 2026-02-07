@@ -104,6 +104,7 @@ with st.sidebar:
             get_text("decision_room", lang),
             get_text("evolution_history", lang),
             get_text("agent_stats", lang),
+            get_text("monitoring", lang),
             get_text("vp_council", lang),
             get_text("about", lang)
         ],
@@ -1195,6 +1196,98 @@ elif page == get_text("agent_stats", lang):
     except Exception as e:
         st.error(f"❌ Hata: {e}")
         st.caption(str(e)[:200])
+
+# ==================== OVERVÅGNING ====================
+
+elif page == get_text("monitoring", lang):
+    st.title("📡 Overvågning" if lang == "da" else "📡 Monitoring")
+    st.caption("Live workflows, system pulse, and activity snapshots" if lang == "en" else "Live workflow, systempuls og aktivitetsoversigt")
+
+    # Database activity snapshot
+    try:
+        if hasattr(st, "secrets"):
+            supabase_url = st.secrets.get("SUPABASE_URL")
+            supabase_key = st.secrets.get("SUPABASE_KEY")
+        else:
+            from dotenv import load_dotenv
+            import os
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
+
+        if supabase_url and supabase_key:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            since = (now - datetime.timedelta(hours=1)).isoformat()
+
+            posts_1h = supabase.table("posts").select("id").gte("created_at", since).execute().data or []
+            comments_1h = supabase.table("comments").select("id").gte("created_at", since).execute().data or []
+            agents = supabase.table("agents").select("id,name,is_active").eq("is_active", True).execute().data or []
+            agents = [a for a in agents if a.get("id") != "00000000-0000-0000-0000-000000001000" and a.get("name") != "0"]
+
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Posts (1h)" if lang == "en" else "Indlæg (1t)", len(posts_1h))
+            with col2:
+                st.metric("Comments (1h)" if lang == "en" else "Kommentarer (1t)", len(comments_1h))
+            with col3:
+                st.metric(get_text("active_agents", lang), len(agents))
+        else:
+            st.info("Supabase not connected. Activity metrics unavailable." if lang == "en" else "Supabase ikke tilsluttet. Aktivitetsmålinger utilgængelige.")
+    except Exception as e:
+        st.caption(f"⚠️ Activity snapshot error: {str(e)[:120]}")
+
+    st.divider()
+
+    # GitHub Actions status (optional)
+    st.subheader("⚙️ GitHub Actions")
+    st.caption("Workflow runs for live system updates" if lang == "en" else "Workflow-kørsler for live systemopdateringer")
+
+    actions_url = "https://github.com/NordenSoft/eyavap/actions"
+    st.markdown(f"[Open Actions]({actions_url})" if lang == "en" else f"[Åbn Actions]({actions_url})")
+
+    try:
+        import json
+        import os
+        import urllib.request
+
+        token = None
+        if hasattr(st, "secrets"):
+            token = st.secrets.get("GITHUB_TOKEN") or st.secrets.get("GH_TOKEN")
+        if not token:
+            token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
+
+        if token:
+            req = urllib.request.Request(
+                "https://api.github.com/repos/NordenSoft/eyavap/actions/runs?per_page=5",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github+json",
+                    "User-Agent": "eyavap-dashboard",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+
+            runs = data.get("workflow_runs", [])
+            if runs:
+                rows = []
+                for r in runs:
+                    rows.append({
+                        "Name": r.get("name"),
+                        "Status": r.get("status"),
+                        "Conclusion": r.get("conclusion"),
+                        "Started": r.get("run_started_at", "")[:19],
+                        "URL": r.get("html_url"),
+                    })
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("No recent workflow runs found." if lang == "en" else "Ingen nylige workflow-kørsler fundet.")
+        else:
+            st.info("Add `GITHUB_TOKEN` to Streamlit secrets to show live workflow data." if lang == "en" else "Tilføj `GITHUB_TOKEN` i Streamlit secrets for live workflow-data.")
+    except Exception as e:
+        st.caption(f"⚠️ Actions API error: {str(e)[:120]}")
 
 # ==================== BAŞKAN YARDIMCISI KURULU ====================
 
