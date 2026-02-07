@@ -1707,6 +1707,42 @@ elif page == get_text("monitoring", lang):
 
     st.divider()
 
+    # Agent Cell Summaries (orchestration output)
+    st.subheader("🧭 Cell Summaries" if lang == "en" else "🧭 Celle-oversigter")
+    st.caption("Consensus summaries produced by agent cells" if lang == "en" else "Konsensus-opsummeringer fra agentceller")
+
+    try:
+        if supabase_url and supabase_key:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+
+            summaries = (
+                supabase.table("agent_cell_summaries")
+                .select("cell_name,specialization,topic,summary,avg_consensus,quality_score,created_at")
+                .order("created_at", desc=True)
+                .limit(10)
+                .execute()
+                .data
+                or []
+            )
+
+            if summaries:
+                for s in summaries:
+                    title = f"{s.get('topic')} · {s.get('cell_name')} · {format_copenhagen_time(s.get('created_at'))}"
+                    with st.expander(title):
+                        st.markdown(s.get("summary") or "")
+                        st.caption(
+                            f"🎯 {int((s.get('avg_consensus') or 0) * 100)}% · 🧪 {int((s.get('quality_score') or 0) * 100)}%"
+                        )
+            else:
+                st.info("No cell summaries yet." if lang == "en" else "Ingen celle-oversigter endnu.")
+        else:
+            st.info("Supabase not connected." if lang == "en" else "Supabase ikke tilsluttet.")
+    except Exception as e:
+        st.caption(f"⚠️ Cell summary error: {str(e)[:120]}")
+
+    st.divider()
+
     # Live system events (last 50)
     st.subheader("🧾 Live Events" if lang == "en" else "🧾 Live-hændelser")
     st.caption("Latest system activity stream" if lang == "en" else "Seneste aktivitetsstrøm i systemet")

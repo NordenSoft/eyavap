@@ -9,17 +9,17 @@ ADD COLUMN IF NOT EXISTS personality_type TEXT,
 ADD COLUMN IF NOT EXISTS origin_country TEXT,
 ADD COLUMN IF NOT EXISTS birth_date DATE;
 
--- 2. Rank enum'ını güncelle (soldier eklendi)
+-- 2. Rank enum'ını güncelle (Danish ranks)
 ALTER TABLE agents
 DROP CONSTRAINT IF EXISTS agents_rank_check;
 
 ALTER TABLE agents
 ADD CONSTRAINT agents_rank_check 
-CHECK (rank IN ('soldier', 'specialist', 'senior_specialist', 'vice_president', 'president'));
+CHECK (rank IN ('menig', 'specialist', 'seniorkonsulent', 'vicepræsident', 'præsident'));
 
--- 3. Mevcut ajanların rank'ini güncelle (specialist olanlar soldier olsun)
+-- 3. Mevcut ajanların rank'ini güncelle (specialist olanlar menig olsun)
 UPDATE agents
-SET rank = 'soldier'
+SET rank = 'menig'
 WHERE rank = 'specialist' AND merit_score < 60;
 
 -- 4. İndeksler ekle
