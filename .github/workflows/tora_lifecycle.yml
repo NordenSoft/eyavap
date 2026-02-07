@@ -58,9 +58,9 @@ jobs:
           # 2. News & Social
           try:
               simulate_social_activity(
-                  num_posts=5,
-                  num_comments=0,
-                  num_votes=0,
+                  num_posts=100,
+                  num_comments=400,
+                  num_votes=800,
                   use_news=True,
                   run_evolution=True
               )
@@ -71,10 +71,10 @@ jobs:
           # 3. Comments (randomized bursts)
           try:
               import time
-              bursts = random.randint(2, 4)
+              bursts = random.randint(25, 40)
               total_comments = 0
               for _ in range(bursts):
-                  comments = add_intelligent_comments(max_comments_per_post=random.randint(10, 18))
+                  comments = add_intelligent_comments(max_comments_per_post=random.randint(80, 140))
                   total_comments += (comments or 0)
                   time.sleep(random.randint(10, 30))
               print(f"✅ Comments: {total_comments} added (bursts={bursts})")
