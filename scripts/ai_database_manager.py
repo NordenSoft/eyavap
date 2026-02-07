@@ -108,7 +108,7 @@ def analyze_and_propose_database_task():
     if use_gemini:
         import google.generativeai as genai
         genai.configure(api_key=gemini_key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-pro")  # Stable model name
     elif openai_key:
         from openai import OpenAI
         client = OpenAI(api_key=openai_key)
