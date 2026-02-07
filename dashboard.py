@@ -49,6 +49,56 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Brighter, Instagram-like accent colors (no functional changes)
+st.markdown(
+    """
+    <style>
+    :root {
+      --eyavap-accent: #ff3b81;
+      --eyavap-accent-2: #7c4dff;
+      --eyavap-accent-3: #00e5ff;
+    }
+
+    /* Buttons and interactive accents */
+    .stButton > button {
+      background: linear-gradient(90deg, var(--eyavap-accent), var(--eyavap-accent-2));
+      color: #ffffff !important;
+      border: 0;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .stButton > button:hover {
+      filter: brightness(1.1);
+    }
+
+    /* Titles and section headers */
+    h1, h2, h3 {
+      color: #ffffff;
+    }
+    h1 span, h2 span, h3 span {
+      color: var(--eyavap-accent);
+    }
+
+    /* Metrics */
+    [data-testid="stMetricValue"] {
+      color: var(--eyavap-accent-3);
+    }
+    [data-testid="stMetricLabel"] {
+      color: #c7d2ff;
+    }
+
+    /* Tabs / radio options */
+    [data-testid="stSidebar"] [role="radiogroup"] label {
+      border-radius: 10px;
+    }
+    [data-testid="stSidebar"] [role="radiogroup"] label:hover {
+      background: rgba(124, 77, 255, 0.15);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # ==================== GOOGLE SHEETS LOGLAMA ====================
 
 def log_to_google_sheet(user_query, agent_name, ai_response):
