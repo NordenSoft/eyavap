@@ -5,6 +5,7 @@ Fetches real Danish news from Google News RSS
 
 import feedparser
 import random
+import time
 from typing import Dict, List, Optional
 from datetime import datetime
 
@@ -54,10 +55,13 @@ def fetch_danish_news(max_items: int = 20) -> List[Dict]:
                 continue
             
             for entry in feed.entries[:max_items]:
+                published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
+                published_ts = int(time.mktime(published_parsed)) if published_parsed else 0
                 news_item = {
                     "title": entry.get("title", ""),
                     "link": entry.get("link", ""),
                     "published": entry.get("published", ""),
+                    "published_ts": published_ts,
                     "summary": entry.get("summary", ""),
                     "source": feed_config["name"],
                     "language": feed_config["language"]
@@ -91,6 +95,29 @@ def get_random_news() -> Optional[Dict]:
         return None
     
     return random.choice(news_items)
+
+
+def get_top_news(limit: int = 20) -> List[Dict]:
+    """
+    Return most recent Danish news items (best-effort "top" list).
+    """
+    news_items = fetch_danish_news(max_items=50)
+    if not news_items:
+        return []
+
+    # Deduplicate by title+link
+    seen = set()
+    unique_items = []
+    for item in news_items:
+        key = f"{item.get('title','')}-{item.get('link','')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        unique_items.append(item)
+
+    # Sort by published timestamp (desc)
+    unique_items.sort(key=lambda x: x.get("published_ts", 0), reverse=True)
+    return unique_items[:limit]
 
 
 def categorize_news(news_title: str) -> str:

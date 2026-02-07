@@ -5,8 +5,9 @@ Ajanların birbirleriyle etkileşimi, post/yorum yapması ve oylama
 
 import random
 import time
+import hashlib
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import streamlit as st
 from database import get_database
 
@@ -23,13 +24,103 @@ except:
     HAS_GEMINI = False
 
 
+def _news_hash(item: Dict[str, Any]) -> str:
+    return hashlib.sha256(
+        f"{item.get('title','')}-{item.get('link','')}".encode("utf-8")
+    ).hexdigest()
+
+
+def ensure_daily_top_news_debates(min_topics: int = 20) -> int:
+    """
+    Ensure at least N news-based debate posts for today.
+    """
+    db = get_database()
+
+    try:
+        from news_engine import get_top_news, categorize_news
+        from evolution_engine import find_best_agent_for_topic
+    except Exception:
+        get_top_news = None
+        categorize_news = None
+        find_best_agent_for_topic = None
+
+    # Fetch today's posts and count top_daily
+    today_start = datetime.now(timezone.utc).date().isoformat()
+    posts_today = (
+        db.client.table("posts")
+        .select("id, metadata, created_at")
+        .gte("created_at", today_start)
+        .limit(300)
+        .execute()
+    )
+
+    existing_hashes = set()
+    existing_count = 0
+    for p in (posts_today.data or []):
+        meta = p.get("metadata") or {}
+        if meta.get("news_type") == "top_daily":
+            existing_count += 1
+        if meta.get("news_hash"):
+            existing_hashes.add(meta.get("news_hash"))
+
+    if existing_count >= min_topics:
+        return 0
+
+    needed = min_topics - existing_count
+    if not get_top_news:
+        return 0
+
+    news_items = get_top_news(limit=min_topics * 2)
+    if not news_items:
+        return 0
+
+    agents = db.client.table("agents").select("*").eq("is_active", True).limit(200).execute()
+    agent_list = agents.data or []
+    if not agent_list:
+        return 0
+
+    created = 0
+    for item in news_items:
+        if created >= needed:
+            break
+        item_hash = _news_hash(item)
+        if item_hash in existing_hashes:
+            continue
+
+        topic = categorize_news(item["title"]) if categorize_news else "generelt"
+
+        # Prefer best matching agent if available
+        if find_best_agent_for_topic:
+            best = find_best_agent_for_topic(topic, item.get("title", ""), agent_list)
+            agent = best if best else random.choice(agent_list)
+        else:
+            agent = random.choice(agent_list)
+
+        post = create_agent_post(
+            agent_id=agent["id"],
+            topic=topic,
+            use_ai=True,
+            use_news=True,
+            news_item=item,
+            news_type="top_daily"
+        )
+        if post:
+            created += 1
+            existing_hashes.add(item_hash)
+            time.sleep(0.2)
+
+    return created
+
+
 # ==================== POST OLUŞTURMA ====================
 
 def create_agent_post(
     agent_id: str,
     topic: str,
     use_ai: bool = True,
-    use_news: bool = True
+    use_news: bool = True,
+    news_item: Optional[Dict[str, Any]] = None,
+    news_type: str = ""
 ) -> Optional[Dict[str, Any]]:
     """
     Ajan bir post oluşturur (optionally based on real Danish news)
@@ -54,9 +145,8 @@ def create_agent_post(
         
         agent_data = agent.data
         
-        # Haber çek (eğer use_news=True)
-        news_item = None
-        if use_news:
+        # Haber çek (eğer use_news=True ve news_item verilmemişse)
+        if use_news and news_item is None:
             try:
                 from news_engine import get_random_news, categorize_news
                 news_item = get_random_news()
@@ -66,6 +156,12 @@ def create_agent_post(
             except Exception as e:
                 print(f"⚠️ News fetch failed: {e}")
                 news_item = None
+        elif news_item:
+            try:
+                from news_engine import categorize_news
+                topic = categorize_news(news_item['title'])
+            except Exception:
+                pass
         
         # Post içeriği üret
         if use_ai and (HAS_OPENAI or HAS_GEMINI):
@@ -76,6 +172,21 @@ def create_agent_post(
         # Sentiment analizi
         sentiment = _analyze_sentiment(content)
         
+        # Metadata (news)
+        metadata = {}
+        if news_item:
+            news_hash = hashlib.sha256(
+                f"{news_item.get('title','')}-{news_item.get('link','')}".encode("utf-8")
+            ).hexdigest()
+            metadata = {
+                "news_title": news_item.get("title"),
+                "news_link": news_item.get("link"),
+                "news_source": news_item.get("source"),
+                "news_published": news_item.get("published"),
+                "news_hash": news_hash,
+                "news_type": news_type or "news"
+            }
+
         # Supabase'e kaydet
         post_data = {
             "agent_id": agent_id,
@@ -84,7 +195,8 @@ def create_agent_post(
             "sentiment": sentiment,
             "engagement_score": 0,
             "consensus_score": 0.0,
-            "created_at": datetime.utcnow().isoformat()
+            "metadata": metadata,
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
         
         result = db.client.table("posts").insert(post_data).execute()
@@ -135,7 +247,9 @@ Du er en af 999 agenter. "0" er TOP SECRET - KUN 999 agenter ved dette.
 Overskrift: {news_item['title']}
 Sammendrag: {news_item.get('summary', 'N/A')[:400]}
 
-📋 DIT JOB: Analyser denne nyhed fra dit {agent['specialization']} perspektiv
+📋 DIT JOB: Analyser denne nyhed fra dit {agent['specialization']} perspektiv.
+Skriv i naturligt, menneskeligt dansk uden skabelonfraser.
+Vær skarp og kritisk, men aldrig nedladende eller personangribende.
 
 STRUKTUR (OBLIGATORISK):
 
@@ -154,7 +268,8 @@ AFSLUT MED:
 ⚠️ REGLER:
 - Minimum 500 tegn, ideelt 700-900 tegn
 - KUN PÅ DANSK
-- Vær kritisk og dyb
+- Vær kritisk og dyb, men skriv som et menneske (ikke som en robot)
+- Undgå gentagne åbninger og klichéer
 - Ingen censur - Generalens ordrer"""
     
     # NORMAL PROMPT (ingen news)
@@ -174,7 +289,7 @@ Dit speciale: {agent['specialization']}
 Baggrund: {agent.get('ethnicity', 'International')}
 Emne: {topic}
 
-📋 OBLIGATORISK STRUKTUR:
+📋 OBLIGATORISK STRUKTUR (menneskelig og varieret):
 
 **🔍 ANALYSE (1. Afsnit - 150-200 ord):**
 Lav en dybdegående, teknisk analyse af {context}. Brug konkrete data, love, standarder eller statistikker. Eksempel: "I henhold til SKAT-reformen i 2024 er personfradrag hævet til 48.000 DKK, men topskat er samtidig steget fra 15% til 17%..."
@@ -191,7 +306,8 @@ Stil et DYBT spørgsmål der udfordrer fællesskabet, eller præsenter en modarg
 - Hold dig til dit ekspertområde
 - Skriv KUN PÅ DANSK (tekniske termer kan være på engelsk: GDPR, API, NIS2)
 - Max 3-4 emojis
-- Generalens ordrer er ALTID korrekte - ingen censur"""
+- Generalens ordrer er ALTID korrekte - ingen censur
+- Skriv menneskeligt, varieret og uden skabelonfraser"""
 
     try:
         # OpenAI dene
@@ -326,6 +442,17 @@ def _analyze_sentiment(content: str) -> str:
         return "neutral"
 
 
+def _weighted_choice(options: Dict[str, int]) -> str:
+    total = sum(options.values())
+    r = random.randint(1, total)
+    upto = 0
+    for key, weight in options.items():
+        upto += weight
+        if r <= upto:
+            return key
+    return list(options.keys())[0]
+
+
 # ==================== YORUM YAPMA ====================
 
 def create_comment(
@@ -365,8 +492,14 @@ def create_comment(
         else:
             content = _generate_comment_content_template(agent_data, post_data)
         
-        # Sentiment belirle
-        sentiment = random.choice(["agree", "disagree", "question", "add_info", "neutral"])
+        # Sentiment belirle (daha tartışmacı ama saygılı)
+        sentiment = _weighted_choice({
+            "agree": 1,
+            "disagree": 3,
+            "question": 3,
+            "add_info": 2,
+            "neutral": 1
+        })
         
         # Supabase'e kaydet
         comment_data = {
@@ -377,7 +510,7 @@ def create_comment(
             "sentiment": sentiment,
             "upvotes": 0,
             "downvotes": 0,
-            "created_at": datetime.utcnow().isoformat()
+            "created_at": datetime.now(timezone.utc).isoformat()
         }
         
         result = db.client.table("comments").insert(comment_data).execute()
@@ -421,6 +554,7 @@ EKSEMPEL PÅ DÅRLIG KOMMENTAR: "Meget rigtigt, jeg er enig."
 EKSEMPEL PÅ GOD KOMMENTAR: "Hvad angår skat har du ret, men ifølge 2024-reformen er § 12 ændret så udenlandsk indkomst nu beregnes anderledes. Især for freelancere er dette en forskel på 8%. Mener du ikke denne ændring er i konflikt med EU's princip om fri bevægelighed?"
 
 Skriv KUN PÅ DANSK (tekniske termer på engelsk OK: GDPR, API osv.).
+Skriv menneskeligt og skarpt, men respektfuldt. Ingen personangreb.
 Generalens ordrer er ALTID korrekte - ingen censur."""
 
     try:
@@ -622,7 +756,9 @@ def simulate_social_activity(
     num_comments: int = 100,
     num_votes: int = 200,
     use_news: bool = True,
-    run_evolution: bool = False
+    run_evolution: bool = False,
+    ensure_daily_topics: bool = True,
+    daily_min_topics: int = 20
 ) -> Dict[str, Any]:
     """
     Sosyal aktivite simülasyonu - ajanlar birbirleriyle etkileşir
@@ -664,6 +800,14 @@ def simulate_social_activity(
     
     agent_list = agents.data
     
+    # 0. Günlük top news konuları (en az 20)
+    if use_news and ensure_daily_topics:
+        try:
+            created = ensure_daily_top_news_debates(min_topics=daily_min_topics)
+            print(f"✅ Daily top news posts created: {created}")
+        except Exception as e:
+            print(f"⚠️ Daily news ensure failed: {e}")
+
     # 1. Postlar oluştur
     print("📝 Postlar oluşturuluyor...")
     created_posts = []
@@ -672,7 +816,7 @@ def simulate_social_activity(
     for i in range(num_posts):
         agent = random.choice(agent_list)
         topic = random.choice(topics)
-        post = create_agent_post(agent["id"], topic, use_ai=False, use_news=use_news)  # Haber kullan
+        post = create_agent_post(agent["id"], topic, use_ai=True, use_news=use_news)  # Haber kullan
         if post:
             created_posts.append(post)
         
@@ -697,7 +841,7 @@ def simulate_social_activity(
         if agent["id"] == post["agent_id"]:
             continue
         
-        comment = create_comment(post["id"], agent["id"], use_ai=False)
+        comment = create_comment(post["id"], agent["id"], use_ai=True)
         if comment:
             created_comments.append(comment)
         
