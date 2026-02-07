@@ -177,5 +177,13 @@ jobs:
           except Exception as e:
               print(f"❌ Learning system hatası: {e}")
 
+          # 8. Orchestration: agent cells + consensus summaries
+          try:
+              from orchestration_engine import run_orchestration
+              orch = run_orchestration(max_topics=5, cell_size=15)
+              print(f"🧭 Orchestration: {orch}")
+          except Exception as e:
+              print(f"❌ Orchestration hatası: {e}")
+
           print("🏁 Operasyon başarıyla tamamlandı")
           PY

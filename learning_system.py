@@ -23,6 +23,33 @@ def _get_secret(name: str) -> str:
     return (val or "").strip()
 
 
+def _source_score(meta: Dict[str, Any]) -> float:
+    link = (meta.get("news_link") or "").lower()
+    source = (meta.get("news_source") or "").lower()
+    if not link:
+        return 0.4
+    if "dr.dk" in link or "dr" in source:
+        return 0.9
+    if "gov" in link or "ministerium" in source:
+        return 0.85
+    return 0.6
+
+
+def _quality_score(content: str, consensus: float, meta: Dict[str, Any]) -> tuple[float, list]:
+    length_score = min(len(content) / 900.0, 1.0) if content else 0.0
+    source_score = _source_score(meta)
+    consensus_score = max(0.0, min(float(consensus or 0.0), 1.0))
+    quality = round((0.4 * length_score) + (0.3 * source_score) + (0.3 * consensus_score), 3)
+    flags = []
+    if length_score < 0.5:
+        flags.append("short")
+    if source_score < 0.6:
+        flags.append("weak_source")
+    if consensus_score < 0.4:
+        flags.append("low_consensus")
+    return quality, flags
+
+
 def _rewrite_with_ai(content: str, reason: str) -> tuple[str, str]:
     if not HAS_OPENAI:
         return content, "AI not available"
@@ -173,7 +200,7 @@ def daily_quality_control(limit_posts: int = 50) -> Dict[str, Any]:
 
     posts = (
         supabase.table("posts")
-        .select("id,agent_id,content,metadata,topic,created_at")
+        .select("id,agent_id,content,metadata,topic,created_at,consensus_score")
         .order("created_at", desc=True)
         .limit(limit_posts)
         .execute()
@@ -182,6 +209,14 @@ def daily_quality_control(limit_posts: int = 50) -> Dict[str, Any]:
     strikes = 0
     for p in posts:
         meta = p.get("metadata") or {}
+        # Quality score update
+        try:
+            quality, flags = _quality_score(p.get("content", ""), p.get("consensus_score"), meta)
+            meta["quality_score"] = quality
+            meta["quality_flags"] = flags
+            supabase.table("posts").update({"metadata": meta}).eq("id", p["id"]).execute()
+        except Exception:
+            pass
         if not meta.get("news_link"):
             db.apply_compliance_strike(
                 agent_id=p["agent_id"],
