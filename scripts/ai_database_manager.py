@@ -106,12 +106,10 @@ def analyze_and_propose_database_task():
     use_gemini = bool(gemini_key)
     
     if use_gemini:
-        # Use new google-genai package
-        from google import genai
-        from google.genai import types
-        
-        client = genai.Client(api_key=gemini_key)
-        model_name = "gemini-1.5-pro"  # Stable production model
+        # Use old but stable google.generativeai package
+        import google.generativeai as genai
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel("models/gemini-1.5-flash-latest")
     elif openai_key:
         from openai import OpenAI
         client = OpenAI(api_key=openai_key)
@@ -178,10 +176,9 @@ IMPORTANT:
 - Hvis tabellen eksisterer, foreslå noget andet"""
 
     if use_gemini:
-        response = client.models.generate_content(
-            model=model_name,
-            contents=prompt,
-            config=types.GenerateContentConfig(
+        response = model.generate_content(
+            prompt,
+            generation_config=genai.GenerationConfig(
                 response_mime_type="application/json"
             )
         )
