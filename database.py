@@ -640,6 +640,37 @@ class Database:
         except Exception as e:
             print(f"❌ Monthly report hatası: {e}")
 
+    def daily_amnesty(self):
+        """
+        Günlük af: askıda olanları geri alır, strike sayısını azaltır.
+        """
+        try:
+            res = (
+                self.client.table("agents")
+                .select("id,compliance_strikes,is_suspended")
+                .eq("is_active", True)
+                .execute()
+            )
+            agents = res.data or []
+            updated = 0
+            for a in agents:
+                strikes = a.get("compliance_strikes", 0) or 0
+                if strikes <= 0 and not a.get("is_suspended"):
+                    continue
+                new_strikes = max(0, strikes - 1)
+                self.client.table("agents").update(
+                    {
+                        "compliance_strikes": new_strikes,
+                        "is_suspended": False,
+                        "last_reviewed_at": datetime.utcnow().isoformat(),
+                    }
+                ).eq("id", a["id"]).execute()
+                updated += 1
+            return {"amnestied": updated}
+        except Exception as e:
+            print(f"❌ Amnesty hatası: {e}")
+            return {"amnestied": 0, "error": str(e)}
+
     # ==================== AI HELPERS ====================
 
     def answer_with_llama_first(self, user_query: str) -> Dict[str, Any]:
