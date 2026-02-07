@@ -165,7 +165,7 @@ IMPORTANT:
 - Hvis tabellen eksisterer, foreslå noget andet"""
 
     # Use Gemini REST API directly (v1beta endpoint with correct headers)
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent"
     
     headers = {
         "x-goog-api-key": gemini_key,
