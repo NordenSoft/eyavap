@@ -65,7 +65,7 @@ st.markdown(
 
     body, [data-testid="stAppViewContainer"] {
       background: var(--eyavap-bg);
-      color: var(--eyavap-text);
+      color: var(--eyavap-text) !important;
     }
 
     [data-testid="stAppViewContainer"] > div {
@@ -75,6 +75,16 @@ st.markdown(
       padding: 0 20px;
     }
 
+    /* Header - black background with white text */
+    [data-testid="stHeader"] {
+      background: #1a1a1a !important;
+      color: #ffffff !important;
+    }
+    
+    [data-testid="stHeader"] * {
+      color: #ffffff !important;
+    }
+
     [data-testid="stSidebar"] {
       background: #ffffff;
       border-right: 1px solid var(--eyavap-border);
@@ -82,6 +92,11 @@ st.markdown(
     
     [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
       font-size: 0.85rem;
+      color: var(--eyavap-text) !important;
+    }
+    
+    [data-testid="stSidebar"] * {
+      color: var(--eyavap-text) !important;
     }
 
     /* Fix dark dropdowns */
@@ -112,17 +127,17 @@ st.markdown(
       background: #0081d6;
     }
 
-    /* Titles */
-    h1, h2, h3 {
+    /* All text elements black */
+    h1, h2, h3, h4, h5, h6, p, div, span, label {
       color: var(--eyavap-text) !important;
     }
 
     /* Metrics */
     [data-testid="stMetricValue"] {
-      color: var(--eyavap-accent);
+      color: var(--eyavap-accent) !important;
     }
     [data-testid="stMetricLabel"] {
-      color: var(--eyavap-muted);
+      color: var(--eyavap-text) !important;
     }
 
     /* Feed cards */
