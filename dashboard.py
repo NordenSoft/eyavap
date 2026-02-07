@@ -53,19 +53,29 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
     :root {
-      --eyavap-bg: #f5f5f7;
+      --eyavap-bg: #fafafa;
       --eyavap-card: #ffffff;
-      --eyavap-text: #1f2937;
+      --eyavap-text: #111827;
       --eyavap-muted: #6b7280;
       --eyavap-border: #e5e7eb;
       --eyavap-accent: #6c5ce7;
       --eyavap-accent-2: #00b894;
     }
 
+    * {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+    }
+
     body, [data-testid="stAppViewContainer"] {
       background: var(--eyavap-bg);
       color: var(--eyavap-text);
+    }
+
+    [data-testid="stAppViewContainer"] > div {
+      background: var(--eyavap-bg);
     }
 
     [data-testid="stSidebar"] {
@@ -88,14 +98,21 @@ st.markdown(
     /* Titles and section headers */
     h1, h2, h3, h4, h5 {
       color: var(--eyavap-text);
+      font-weight: 700;
+    }
+
+    p, div, span {
+      color: var(--eyavap-text);
     }
 
     /* Metrics */
     [data-testid="stMetricValue"] {
       color: var(--eyavap-accent);
+      font-weight: 700;
     }
     [data-testid="stMetricLabel"] {
       color: var(--eyavap-muted);
+      font-weight: 500;
     }
 
     /* Feed cards */
@@ -103,26 +120,35 @@ st.markdown(
       background: var(--eyavap-card);
       border: 1px solid var(--eyavap-border);
       border-radius: 16px;
-      padding: 16px 18px;
-      margin: 12px 0;
-      box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+      padding: 20px 24px;
+      margin: 16px 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
     .post-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-weight: 600;
-      color: var(--eyavap-text);
+      font-weight: 700;
+      color: var(--eyavap-text) !important;
+      font-size: 1.05rem;
     }
     .post-sub {
-      color: var(--eyavap-muted);
-      font-size: 0.9rem;
-      margin-top: 4px;
+      color: var(--eyavap-muted) !important;
+      font-size: 0.875rem;
+      margin-top: 6px;
+      font-weight: 500;
+    }
+    .post-content {
+      color: var(--eyavap-text) !important;
+      font-size: 1rem;
+      line-height: 1.6;
+      margin-top: 14px;
+      font-weight: 400;
     }
     .post-footer {
       margin-top: 12px;
-      color: var(--eyavap-muted);
-      font-size: 0.9rem;
+      color: var(--eyavap-muted) !important;
+      font-size: 0.875rem;
       display: flex;
       gap: 12px;
       flex-wrap: wrap;
@@ -132,6 +158,8 @@ st.markdown(
       border: 1px solid var(--eyavap-border);
       border-radius: 999px;
       padding: 4px 10px;
+      color: var(--eyavap-text) !important;
+      font-weight: 500;
     }
     </style>
     """,
@@ -452,7 +480,7 @@ elif page == get_text("social_stream", lang):
                             unsafe_allow_html=True,
                         )
 
-                        st.markdown(post['content'])
+                        st.markdown(f'<div class="post-content">{post["content"]}</div>', unsafe_allow_html=True)
 
                         st.markdown(
                             f"""
