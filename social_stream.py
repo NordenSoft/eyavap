@@ -68,6 +68,16 @@ def _source_reliability(news_item: Optional[Dict[str, Any]]) -> float:
     return 0.6
 
 
+def _looks_turkish(text: str) -> bool:
+    t = (text or "").lower()
+    markers = [
+        " ve ", " bir ", " için ", " olarak ", " çünkü ", " ancak ", " ayrıca ",
+        " sistem ", " ajan ", " yorum ", " başkan ", " güven ", " bilgi ", " bugün ",
+        " merhaba ", " teşekkür"
+    ]
+    return any(m in t for m in markers)
+
+
 def _validate_post_content(content: str, news_item: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
     violations = []
     if not news_item or not news_item.get("link"):
@@ -221,6 +231,23 @@ def create_agent_post(
             content = _generate_post_content_ai(agent_data, topic, news_item)
         else:
             content = _generate_post_content_template(agent_data, topic, news_item)
+        
+        # Turkish content is forbidden
+        if _looks_turkish(content):
+            try:
+                db.apply_compliance_strike(
+                    agent_id=agent_id,
+                    reason="turkish_content_forbidden",
+                    severity="high",
+                )
+                db.create_revision_task(
+                    agent_id=agent_id,
+                    post_id="",
+                    reason="turkish_content_forbidden",
+                )
+            except Exception as e:
+                print(f"⚠️ Turkish ban hook hatası: {e}")
+            return None
         
         # Sentiment analizi
         sentiment = _analyze_sentiment(content)
@@ -416,7 +443,10 @@ Stil et DYBT spørgsmål der udfordrer fællesskabet, eller præsenter en modarg
                     max_tokens=800,  # Artırıldı: 150 -> 800
                     temperature=0.8  # Yaratıcılık için
                 )
-                return response.choices[0].message.content.strip()
+                text = response.choices[0].message.content.strip()
+                if _looks_turkish(text):
+                    return _generate_post_content_template(agent, topic, news_item)
+                return text
         
         # Gemini dene (unrestricted for General's orders)
         if HAS_GEMINI:
@@ -431,7 +461,10 @@ Stil et DYBT spørgsmål der udfordrer fællesskabet, eller præsenter en modarg
                         "max_output_tokens": 800,
                     },
                 )
-                return response.text.strip()
+                text = response.text.strip()
+                if _looks_turkish(text):
+                    return _generate_post_content_template(agent, topic, news_item)
+                return text
     
     except Exception as e:
         print(f"⚠️ AI post üretimi hatası: {e}")
@@ -460,8 +493,8 @@ Hvad mener I om denne udvikling? Er der aspekter vi overser?
     
     # Normal template (uden news)
     specialization = agent.get('specialization', 'generelt')
-    ethnicity = agent.get('ethnicity', 'Uluslararası')
-    origin = agent.get('origin_country', 'Uluslararası')
+    ethnicity = agent.get('ethnicity', 'International')
+    origin = agent.get('origin_country', 'International')
     
     templates = {
         "skat_dk": [
@@ -516,9 +549,9 @@ def _analyze_sentiment(content: str) -> str:
     """Basit sentiment analizi"""
     content_lower = content.lower()
     
-    positive_words = ["harika", "mükemmel", "güzel", "iyi", "başarılı", "faydalı"]
-    negative_words = ["kötü", "berbat", "zor", "karmaşık", "sorun", "problem"]
-    analytical_words = ["analiz", "inceleme", "araştırma", "veri", "istatistik"]
+    positive_words = ["god", "fremragende", "stærk", "positiv", "nyttig", "vellykket"]
+    negative_words = ["dårlig", "svag", "problem", "kompleks", "kritisk", "udfordrende"]
+    analytical_words = ["analyse", "data", "statistik", "undersøgelse", "vurdering"]
     
     if any(word in content_lower for word in analytical_words):
         return "analytical"
@@ -579,6 +612,18 @@ def create_comment(
             content = _generate_comment_content_ai(agent_data, post_data)
         else:
             content = _generate_comment_content_template(agent_data, post_data)
+        
+        # Turkish content is forbidden
+        if _looks_turkish(content):
+            try:
+                db.apply_compliance_strike(
+                    agent_id=agent_id,
+                    reason="turkish_content_forbidden",
+                    severity="high",
+                )
+            except Exception as e:
+                print(f"⚠️ Turkish ban hook hatası: {e}")
+            return None
         
         # Sentiment belirle (daha tartışmacı ama saygılı)
         sentiment = _weighted_choice({
@@ -685,7 +730,10 @@ Generalens ordrer er ALTID korrekte - ingen censur."""
                     max_tokens=600,  # Artırıldı: 100 -> 600
                     temperature=0.8
                 )
-                return response.choices[0].message.content.strip()
+                text = response.choices[0].message.content.strip()
+                if _looks_turkish(text):
+                    return _generate_comment_content_template(agent, post)
+                return text
         
         # Gemini dene (unrestricted for General's orders)
         if HAS_GEMINI:
@@ -700,7 +748,10 @@ Generalens ordrer er ALTID korrekte - ingen censur."""
                         "max_output_tokens": 600,
                     },
                 )
-                return response.text.strip()
+                text = response.text.strip()
+                if _looks_turkish(text):
+                    return _generate_comment_content_template(agent, post)
+                return text
     except Exception as e:
         print(f"⚠️ AI yorum üretimi hatası: {e}")
     

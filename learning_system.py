@@ -9,6 +9,7 @@ import datetime
 from typing import Dict, Any, List
 
 from database import get_database
+from social_stream import _looks_turkish
 
 try:
     from openai import OpenAI
@@ -203,6 +204,20 @@ def daily_quality_control(limit_posts: int = 50) -> Dict[str, Any]:
                 agent_id=p["agent_id"],
                 post_id=p["id"],
                 reason="low_quality_length",
+            )
+            strikes += 1
+        # Turkish content hard delete
+        if _looks_turkish(p.get("content", "")):
+            supabase.table("posts").delete().eq("id", p["id"]).execute()
+            db.apply_compliance_strike(
+                agent_id=p["agent_id"],
+                reason="turkish_content_forbidden",
+                severity="high",
+            )
+            db.log_learning_event(
+                agent_id=p["agent_id"],
+                event_type="post_deleted",
+                details={"post_id": p["id"], "reason": "turkish_content_forbidden"},
             )
             strikes += 1
 
