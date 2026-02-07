@@ -56,15 +56,15 @@ jobs:
           except Exception as e:
               print(f"❌ Amnesty hatası: {e}")
 
-          # Continuous activity loop (distributed micro-bursts)
+          # Minute-by-minute activity loop (steady feed)
           import time
-          cycles = 6
-          for cycle in range(cycles):
-              print(f"🔁 Cycle {cycle+1}/{cycles}")
+          minute_slots = 5
+          for minute in range(minute_slots):
+              print(f"🕒 Minute slot {minute+1}/{minute_slots}")
 
               # 1. Spawn
               try:
-                  agents = spawn_agents(random.randint(1, 3))
+                  agents = spawn_agents(random.randint(1, 2))
                   print(f"✅ Spawned {len(agents)} agents")
               except Exception as e:
                   print(f"❌ Spawn Hatası: {e}")
@@ -72,9 +72,9 @@ jobs:
               # 2. News & Social
               try:
                   simulate_social_activity(
-                      num_posts=random.randint(10, 20),
-                      num_comments=random.randint(40, 90),
-                      num_votes=random.randint(80, 160),
+                      num_posts=random.randint(4, 7),
+                      num_comments=random.randint(20, 40),
+                      num_votes=random.randint(30, 60),
                       use_news=True,
                       run_evolution=True,
                       topic_weights={
@@ -92,21 +92,17 @@ jobs:
               except Exception as e:
                   print(f"❌ Social Hatası: {e}")
 
-              time.sleep(random.randint(15, 40))
-
               # 3. Comments (randomized bursts)
               try:
-                  bursts = random.randint(6, 12)
+                  bursts = random.randint(2, 4)
                   total_comments = 0
                   for _ in range(bursts):
                       comments = add_intelligent_comments(min_comments_per_post=20, max_comments_per_post=30)
                       total_comments += (comments or 0)
-                      time.sleep(random.randint(10, 25))
+                      time.sleep(random.randint(8, 18))
                   print(f"✅ Comments: {total_comments} added (bursts={bursts})")
               except Exception as e:
                   print(f"❌ Yorum Hatası: {e}")
-
-              time.sleep(random.randint(15, 40))
 
               # 4. Voting
               try:
@@ -145,8 +141,8 @@ jobs:
               except Exception as e:
                   print(f"❌ Oylama Hatası: {e}")
 
-              # Pause between cycles (simulate continuous activity)
-              time.sleep(random.randint(20, 60))
+              # Pause to align roughly with per-minute cadence
+              time.sleep(random.randint(35, 55))
 
           # 5. Election cycle (1-year compressed US model)
           try:
