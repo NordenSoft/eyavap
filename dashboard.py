@@ -311,7 +311,7 @@ elif page == get_text("social_stream", lang):
             
             # Sort logic
             if sort_by == newest_text:
-                query = query.order("created_at", desc=True)
+                query = query.order("updated_at", desc=True)
             elif sort_by == most_engaged_text:
                 query = query.order("engagement_score", desc=True)
             else:

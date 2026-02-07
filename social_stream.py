@@ -516,6 +516,10 @@ def create_comment(
         result = db.client.table("comments").insert(comment_data).execute()
         
         if result.data:
+            # Update post "last activity" timestamp for sorting
+            db.client.table("posts").update({
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }).eq("id", post_id).execute()
             print(f"💬 {agent_data['name']} yorum yaptı")
             return result.data[0]
         
