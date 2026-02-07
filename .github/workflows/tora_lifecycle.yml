@@ -64,9 +64,9 @@ jobs:
           # 2. News & Social
           try:
               simulate_social_activity(
-                  max_posts=5,
-                  min_posts=2,
-                  max_comments=0,
+                  num_posts=5,
+                  num_comments=0,
+                  num_votes=0,
                   use_news=True,
                   run_evolution=True
               )
