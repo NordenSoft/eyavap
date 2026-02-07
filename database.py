@@ -284,6 +284,32 @@ class Database:
             print(f"❌ İstatistik hatası: {e}")
             return {}
 
+    def get_agent_statistics(self) -> List[Dict[str, Any]]:
+        """Dashboard için ajan istatistikleri"""
+        try:
+            res = (
+                self.client
+                .table("agents")
+                .select(
+                    "id,name,specialization,rank,merit_score,total_queries,successful_queries,success_rate,last_used,ethnicity,origin_country"
+                )
+                .eq("is_active", True)
+                .order("merit_score", desc=True)
+                .execute()
+            )
+            agents = res.data or []
+        except Exception as e:
+            print(f"❌ Ajan istatistikleri hatası: {e}")
+            agents = self.get_all_agents()
+
+        # success_rate hesapla (yoksa)
+        for a in agents:
+            if a.get("success_rate") is None:
+                total_q = a.get("total_queries", 0) or 0
+                success_q = a.get("successful_queries", 0) or 0
+                a["success_rate"] = round((success_q / total_q * 100), 2) if total_q else 0
+        return agents
+
     # ==================== AI HELPERS ====================
 
     def answer_with_llama_first(self, user_query: str) -> Dict[str, Any]:
