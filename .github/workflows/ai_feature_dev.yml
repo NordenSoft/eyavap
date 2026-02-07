@@ -1,0 +1,47 @@
+name: AI Feature Development
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"  # Her 15 dakika
+
+permissions:
+  contents: write
+
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai
+
+      - name: Run AI feature developer
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python scripts/ai_feature_dev.py
+
+      - name: Commit and push if changes
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "eyavap-agent"
+            git config user.email "eyavap-agent@users.noreply.github.com"
+            git add -A
+            git commit -m "AI agent: autonomous feature development"
+            git push origin HEAD:main
+            echo "✅ Feature deployed"
+          else
+            echo "⏭️ No changes"
+          fi
