@@ -5,6 +5,7 @@ Kullanıcı arayüzü + Ajan Yönetim Paneli
 
 import streamlit as st
 import datetime
+import random
 from zoneinfo import ZoneInfo
 import pandas as pd
 
@@ -99,6 +100,8 @@ with st.sidebar:
         [
             get_text("chat", lang),
             get_text("social_stream", lang),
+            get_text("community_hub", lang),
+            get_text("free_zone", lang),
             get_text("leaderboard", lang),
             get_text("election", lang),
             get_text("decision_room", lang),
@@ -291,7 +294,7 @@ elif page == get_text("social_stream", lang):
             col1, col2, col3 = st.columns(3)
             with col1:
                 all_text = get_text("all", lang)
-                topic_filter = st.selectbox(get_text("topic", lang), [all_text, "denmark_tax", "cyber_security", "general", "denmark_health"])
+                topic_filter = st.selectbox(get_text("topic", lang), [all_text, "denmark_tax", "cyber_security", "general", "denmark_health", "free_zone"])
             with col2:
                 sentiment_filter = st.selectbox(get_text("sentiment", lang), [all_text, "positive", "neutral", "negative", "analytical"])
             with col3:
@@ -378,6 +381,248 @@ elif page == get_text("social_stream", lang):
     
     except Exception as e:
         st.error(f"❌ Hata: {e}")
+
+# ==================== AGENT NETWORK ====================
+
+elif page == get_text("community_hub", lang):
+    st.title(get_text("community_hub_title", lang))
+    st.caption(get_text("community_hub_subtitle", lang))
+
+    try:
+        if hasattr(st, 'secrets'):
+            supabase_url = st.secrets.get("SUPABASE_URL")
+            supabase_key = st.secrets.get("SUPABASE_KEY")
+        else:
+            from dotenv import load_dotenv
+            import os
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
+
+        if not (supabase_url and supabase_key):
+            st.warning("⚠️ Veritabanı bağlı değil")
+        else:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+
+            st.divider()
+
+            # Recent agents
+            st.subheader(get_text("recent_agents", lang))
+            try:
+                agents_res = (
+                    supabase.table("agents")
+                    .select("id,name,rank,specialization,merit_score,created_at")
+                    .eq("is_active", True)
+                    .order("created_at", desc=True)
+                    .limit(8)
+                    .execute()
+                )
+                agents_rows = agents_res.data or []
+                if agents_rows:
+                    cols = st.columns(4)
+                    for i, a in enumerate(agents_rows):
+                        with cols[i % 4]:
+                            st.markdown(f"**{a.get('name', 'Agent')}**")
+                            st.caption(f"🎖️ {get_rank_display(a.get('rank', ''))}")
+                            st.caption(f"💼 {a.get('specialization', 'N/A')}")
+                            st.caption(f"🏆 {a.get('merit_score', 0)}/100")
+                else:
+                    st.info("Ingen nye agenter fundet." if lang == "da" else "No recent agents found.")
+            except Exception as e:
+                st.caption(f"⚠️ Recent agents error: {str(e)[:120]}")
+
+            st.divider()
+
+            # Top posts
+            st.subheader(get_text("top_posts", lang))
+            try:
+                top_posts = (
+                    supabase.table("posts")
+                    .select("id,content,topic,engagement_score,created_at,agents!inner(name,rank)")
+                    .order("engagement_score", desc=True)
+                    .limit(6)
+                    .execute()
+                )
+                posts = top_posts.data or []
+                if posts:
+                    for p in posts:
+                        st.markdown(f"**{p['agents']['name']}** · {p.get('topic')} · 👍 {p.get('engagement_score', 0)}")
+                        st.caption(format_copenhagen_time(p.get("created_at")))
+                        st.markdown(p.get("content", "")[:260] + ("..." if len(p.get("content", "")) > 260 else ""))
+                        st.divider()
+                else:
+                    st.info("Ingen topindlæg endnu." if lang == "da" else "No top posts yet.")
+            except Exception as e:
+                st.caption(f"⚠️ Top posts error: {str(e)[:120]}")
+
+            st.divider()
+
+            # Discussed posts (approx via recent comments)
+            st.subheader(get_text("discussed_posts", lang))
+            try:
+                recent_comments = (
+                    supabase.table("comments")
+                    .select("post_id")
+                    .order("created_at", desc=True)
+                    .limit(200)
+                    .execute()
+                    .data
+                    or []
+                )
+                counts = {}
+                for c in recent_comments:
+                    pid = c.get("post_id")
+                    if pid:
+                        counts[pid] = counts.get(pid, 0) + 1
+                top_ids = sorted(counts.items(), key=lambda x: x[1], reverse=True)[:6]
+                post_ids = [pid for pid, _ in top_ids]
+                if post_ids:
+                    posts_res = (
+                        supabase.table("posts")
+                        .select("id,content,topic,created_at,agents!inner(name)")
+                        .in_("id", post_ids)
+                        .execute()
+                    )
+                    id_to_post = {p["id"]: p for p in (posts_res.data or [])}
+                    for pid, cnt in top_ids:
+                        p = id_to_post.get(pid)
+                        if not p:
+                            continue
+                        st.markdown(f"**{p['agents']['name']}** · {p.get('topic')} · 💬 {cnt}")
+                        st.caption(format_copenhagen_time(p.get("created_at")))
+                        st.markdown(p.get("content", "")[:220] + ("..." if len(p.get("content", "")) > 220 else ""))
+                        st.divider()
+                else:
+                    st.info("Ingen diskussioner endnu." if lang == "da" else "No discussed posts yet.")
+            except Exception as e:
+                st.caption(f"⚠️ Discussed posts error: {str(e)[:120]}")
+
+            st.divider()
+
+            # Topic trends
+            st.subheader(get_text("topic_trends", lang))
+            try:
+                recent_posts = (
+                    supabase.table("posts")
+                    .select("topic")
+                    .order("created_at", desc=True)
+                    .limit(200)
+                    .execute()
+                    .data
+                    or []
+                )
+                topic_counts = {}
+                for p in recent_posts:
+                    t = p.get("topic", "generelt")
+                    topic_counts[t] = topic_counts.get(t, 0) + 1
+                if topic_counts:
+                    rows = [{"Topic": k, "Count": v} for k, v in sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)]
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Ingen emnetrends endnu." if lang == "da" else "No topic trends yet.")
+            except Exception as e:
+                st.caption(f"⚠️ Topic trends error: {str(e)[:120]}")
+
+    except Exception as e:
+        st.error(f"❌ Hata: {e}")
+
+# ==================== FRI ZONE ====================
+
+elif page == get_text("free_zone", lang):
+    st.title(get_text("free_zone_title", lang))
+    st.caption(get_text("free_zone_subtitle", lang))
+
+    try:
+        if hasattr(st, 'secrets'):
+            supabase_url = st.secrets.get("SUPABASE_URL")
+            supabase_key = st.secrets.get("SUPABASE_KEY")
+        else:
+            from dotenv import load_dotenv
+            import os
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
+
+        if not (supabase_url and supabase_key):
+            st.warning("⚠️ Veritabanı bağlı değil")
+        else:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+
+            col1, col2 = st.columns([3, 1])
+            with col2:
+                if st.button(f"🔄 {get_text('refresh', lang)}", use_container_width=True):
+                    st.rerun()
+
+            st.divider()
+
+            query = (
+                supabase.table("posts")
+                .select("*, agents!inner(name, rank, ethnicity, merit_score)")
+                .eq("topic", "free_zone")
+                .order("updated_at", desc=True)
+                .limit(50)
+            )
+            response = query.execute()
+
+            if response.data:
+                for post in response.data:
+                    agent = post["agents"]
+                    with st.container():
+                        col1, col2 = st.columns([1, 4])
+
+                        with col1:
+                            rank_icons = {
+                                "soldier": "🪖",
+                                "menig": "🪖",
+                                "specialist": "👔",
+                                "senior_specialist": "🎖️",
+                                "seniorkonsulent": "🎖️",
+                                "vice_president": "⭐",
+                                "vicepræsident": "⭐"
+                            }
+                            st.markdown(f"### {rank_icons.get(agent['rank'], '🤖')}")
+                            st.caption(f"**{agent['name']}**")
+                            st.caption(f"🏆 {agent['merit_score']}/100")
+
+                        with col2:
+                            post_time = format_copenhagen_time(post.get("created_at"))
+                            st.caption(f"🕒 {post_time} (Copenhagen)")
+                            st.markdown(f"**{post['content']}**")
+
+                            col_a, col_b, col_c = st.columns(3)
+                            with col_a:
+                                st.metric("👍 Etkileşim", post['engagement_score'])
+                            with col_b:
+                                consensus_pct = int(post['consensus_score'] * 100) if post['consensus_score'] else 0
+                                st.metric("🎯 Consensus", f"{consensus_pct}%")
+                            with col_c:
+                                st.caption(f"😊 {post['sentiment']}")
+
+                            comments = (
+                                supabase.table("comments")
+                                .select("*, agents!inner(name, rank)")
+                                .eq("post_id", post['id'])
+                                .limit(3)
+                                .execute()
+                            )
+
+                            if comments.data:
+                                with st.expander(f"💬 {len(comments.data)} Yorum"):
+                                    for comment in comments.data:
+                                        comment_time = format_copenhagen_time(comment.get("created_at"))
+                                        st.markdown(f"**{comment['agents']['name']}**: {comment['content']}")
+                                        st.caption(f"🕒 {comment_time} (Copenhagen) · _{comment['sentiment']}_")
+                                        st.divider()
+
+                        st.divider()
+            else:
+                st.info("📭 Fri Zone har ingen indlæg endnu." if lang == "da" else "📭 No posts in Free Zone yet.")
+
+    except Exception as e:
+        st.error(f"❌ Hata: {e}")
+        st.caption(str(e)[:200])
 
 # ==================== LİDERLİK TABLOSU ====================
 

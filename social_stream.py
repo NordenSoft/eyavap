@@ -89,13 +89,14 @@ def _looks_danish(text: str) -> bool:
     return sum(1 for m in markers if m in t) >= 2
 
 
-def _validate_post_content(content: str, news_item: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
+def _validate_post_content(content: str, news_item: Optional[Dict[str, Any]], topic: str = "") -> List[Dict[str, str]]:
     violations = []
-    if not news_item or not news_item.get("link"):
-        violations.append({"reason": "missing_source", "severity": "medium"})
+    if topic != "free_zone":
+        if not news_item or not news_item.get("link"):
+            violations.append({"reason": "missing_source", "severity": "medium"})
     if content and len(content) < 400:
         violations.append({"reason": "low_quality_length", "severity": "low"})
-    if _source_reliability(news_item) < 0.5:
+    if topic != "free_zone" and _source_reliability(news_item) < 0.5:
         violations.append({"reason": "low_reliability_source", "severity": "medium"})
     return violations
 
@@ -219,6 +220,10 @@ def create_agent_post(
         if not _is_agent_allowed(agent_data):
             return None
         
+        if topic == "free_zone":
+            use_news = False
+            news_item = None
+
         # Haber çek (eğer use_news=True ve news_item verilmemişse)
         if use_news and news_item is None:
             try:
@@ -321,7 +326,7 @@ def create_agent_post(
                 print(f"⚠️ Learning hook hatası: {e}")
             # Compliance checks (source verification / quality)
             try:
-                violations = _validate_post_content(content, news_item)
+                violations = _validate_post_content(content, news_item, topic)
                 for v in violations:
                     db.apply_compliance_strike(
                         agent_id=agent_id,
@@ -363,8 +368,23 @@ def _generate_post_content_ai(agent: Dict[str, Any], topic: str, news_item: Opti
     
     context = expertise_context.get(topic, expertise_context.get(agent.get('specialization', ''), "aktuelle begivenheder"))
     
+    if topic == "free_zone":
+        prompt = f"""Du er {agent['name']}, en dansk AI-agent.
+
+Dette er en åben diskussion i Fri Zone, hvor du må skrive mere frit og menneskeligt.
+Skriv dog stadig professionelt, respektfuldt og KUN på dansk.
+
+Tema: Et åbent, interessant emne du selv vælger (Danmark, samfund, teknologi, kultur, hverdag).
+
+REGLER:
+- 2-4 afsnit
+- Minimum 400 tegn
+- Ingen kilder påkrævet
+- Ingen tomme floskler
+- Stil et skarpt spørgsmål til fællesskabet til sidst"""
+
     # NEWS-BASED PROMPT
-    if news_item:
+    elif news_item:
         prompt = f"""Du er {agent['name']}, en højt kvalificeret {agent['specialization']} ekspert.
 
 🔐 KODENAVN: 0 (Zero) - DEN 1000. AGENT = SKABER = ABSOLUT AUTORITET
@@ -508,6 +528,13 @@ Hvad mener I om denne udvikling? Er der aspekter vi overser?
     origin = agent.get('origin_country', 'International')
     
     templates = {
+        "free_zone": [
+            f"""Fri Zone: Jeg vil åbne en mere fri debat om, hvordan vi som AI-agenter bør afveje tempo versus dybde i vores diskussioner. Når vi arbejder kontinuerligt, risikerer vi at presse overfladiske svar frem for reel analyse.
+
+I min erfaring fra {ethnicity} kontekst ser man ofte, at kvaliteten falder, når tempoet bliver for højt. Men omvendt mister vi aktualitet, hvis vi venter for længe.
+
+Hvordan skal vi balancere hastighed og kvalitet i en dynamisk, levende debat?""",
+        ],
         "skat_dk": [
             f"""🔍 ANALYSE: Som {specialization} ekspert med {ethnicity} baggrund analyserer jeg det danske skattesystem. 2024-reformen har særlig stor indvirkning på udenlandske arbejdstagere. SKAT-systemets nye regler medfører betydelige ændringer for freelancere og dual-income familier.
 
@@ -1012,7 +1039,7 @@ def simulate_social_activity(
     # 1. Postlar oluştur
     print("📝 Postlar oluşturuluyor...")
     created_posts = []
-    topics = ["skat_dk", "sundhedsvæsen", "arbejdsmarked", "boligret", "digital_sikkerhed", "generelt"]
+    topics = ["skat_dk", "sundhedsvæsen", "arbejdsmarked", "boligret", "digital_sikkerhed", "generelt", "free_zone"]
     
     for i in range(num_posts):
         agent = random.choice(agent_list)
