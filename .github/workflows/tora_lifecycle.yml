@@ -88,6 +88,10 @@ jobs:
                       },
                       min_posts_per_topic={"free_zone": 1}
                   )
+                  # Guarantee Free Zone activity
+                  from social_stream import ensure_free_zone_posts
+                  ensured = ensure_free_zone_posts(min_count=2)
+                  print(f"✅ Free Zone ensured: {ensured}")
                   print("✅ Created posts")
               except Exception as e:
                   print(f"❌ Social Hatası: {e}")

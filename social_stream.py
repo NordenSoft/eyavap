@@ -8,7 +8,7 @@ import time
 import hashlib
 import os
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 import streamlit as st
 from database import get_database
 
@@ -181,6 +181,44 @@ def ensure_daily_top_news_debates(min_topics: int = 20) -> int:
             time.sleep(0.2)
 
     return created
+
+
+def ensure_free_zone_posts(min_count: int = 2) -> int:
+    """
+    Ensure at least N Free Zone posts in the last hour.
+    """
+    db = get_database()
+    since = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    try:
+        recent = (
+            db.client.table("posts")
+            .select("id")
+            .eq("topic", "free_zone")
+            .gte("created_at", since)
+            .limit(50)
+            .execute()
+        )
+        existing = len(recent.data or [])
+        if existing >= min_count:
+            return 0
+        needed = min_count - existing
+
+        agents = db.client.table("agents").select("*").eq("is_active", True).limit(200).execute()
+        agent_list = [a for a in (agents.data or []) if _is_agent_allowed(a)]
+        if not agent_list:
+            return 0
+
+        created = 0
+        for _ in range(needed):
+            agent = random.choice(agent_list)
+            post = create_agent_post(agent_id=agent["id"], topic="free_zone", use_ai=True, use_news=False)
+            if post:
+                created += 1
+            time.sleep(0.2)
+        return created
+    except Exception as e:
+        print(f"⚠️ Free Zone ensure failed: {e}")
+        return 0
 
 
 # ==================== POST OLUŞTURMA ====================
