@@ -33,6 +33,26 @@ def _get_secret(name: str, default: str = "") -> str:
     return (str(val) if val is not None else "").strip()
 
 
+def _get_secret_with_source(name: str, default: str = "") -> tuple[str, str]:
+    """
+    Secret değeri + kaynağını döndürür.
+    Kaynak: env | streamlit_secrets | default
+    """
+    val_env = os.getenv(name)
+    if val_env:
+        return str(val_env).strip(), "env"
+
+    if st is not None:
+        try:
+            val_secret = st.secrets.get(name, default)
+            if val_secret:
+                return str(val_secret).strip(), "streamlit_secrets"
+        except Exception:
+            pass
+
+    return (str(default) if default is not None else "").strip(), "default"
+
+
 def _get_deepinfra_token() -> str:
     """
     DeepInfra token için birden fazla isimden okumayı destekler.
@@ -162,24 +182,32 @@ class Database:
     """EYAVAP Komuta Merkezi: Supabase + hafıza + log"""
 
     def __init__(self):
-        url = _get_secret("SUPABASE_URL", "")
-        key = _get_secret("SUPABASE_SERVICE_ROLE_KEY", "") or _get_secret("SUPABASE_KEY", "")
+        url, url_src = _get_secret_with_source("SUPABASE_URL", "")
+        service_key, service_key_src = _get_secret_with_source("SUPABASE_SERVICE_ROLE_KEY", "")
+        anon_key, anon_key_src = _get_secret_with_source("SUPABASE_KEY", "")
+        key = service_key or anon_key
+        key_src = service_key_src if service_key else anon_key_src
 
-        self.llama_key = _get_deepinfra_token()
-        self.openai_key = _get_secret("OPENAI_API_KEY", "")
+        self.llama_key, deepinfra_src = _get_secret_with_source("DEEPINFRA_API_TOKEN", "")
+        self.openai_key, openai_src = _get_secret_with_source("OPENAI_API_KEY", "")
 
         # --- RAPOR (güvenli) ---
         if url:
             print(f"✅ SUPABASE HOST: {_safe_host(url)}")
+            print(f"🔐 SUPABASE_URL source: {url_src}")
         else:
             print("🚨 RAPOR: 'SUPABASE_URL' bulunamadı!")
 
         if not key:
             print("🚨 RAPOR: 'SUPABASE_SERVICE_ROLE_KEY' / 'SUPABASE_KEY' bulunamadı!")
+        else:
+            print(f"🔐 SUPABASE_KEY source: {key_src}")
 
         # Token uzunluğu: tokenı ifşa etmez, sadece var mı yok mu gösterir
         print(f"🦙 DeepInfra token length: {len(self.llama_key)}")
         print(f"🔑 OpenAI key length: {len(self.openai_key)}")
+        print(f"🔐 DeepInfra source: {deepinfra_src}")
+        print(f"🔐 OpenAI source: {openai_src}")
 
         if not url or not key:
             missing = []
