@@ -164,8 +164,13 @@ IMPORTANT:
 - Brug korrekt PostgreSQL syntax
 - Hvis tabellen eksisterer, foreslå noget andet"""
 
-    # Use Gemini REST API directly (v1 endpoint for stability)
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+    # Use Gemini REST API directly (v1beta endpoint with correct headers)
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    
+    headers = {
+        "x-goog-api-key": gemini_key,
+        "Content-Type": "application/json"
+    }
     
     payload = {
         "contents": [{
@@ -177,7 +182,7 @@ IMPORTANT:
     }
     
     try:
-        response = requests.post(url, json=payload, timeout=30)
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
         response.raise_for_status()
         
         data = response.json()
