@@ -89,14 +89,19 @@ def _looks_danish(text: str) -> bool:
     return sum(1 for m in markers if m in t) >= 2
 
 
-def _validate_post_content(content: str, news_item: Optional[Dict[str, Any]], topic: str = "") -> List[Dict[str, str]]:
+def _validate_post_content(
+    content: str,
+    news_item: Optional[Dict[str, Any]],
+    topic: str = "",
+    require_source: bool = True,
+) -> List[Dict[str, str]]:
     violations = []
-    if topic != "free_zone":
+    if topic != "free_zone" and require_source:
         if not news_item or not news_item.get("link"):
             violations.append({"reason": "missing_source", "severity": "medium"})
     if content and len(content) < 400:
         violations.append({"reason": "low_quality_length", "severity": "low"})
-    if topic != "free_zone" and _source_reliability(news_item) < 0.5:
+    if topic != "free_zone" and require_source and _source_reliability(news_item) < 0.5:
         violations.append({"reason": "low_reliability_source", "severity": "medium"})
     return violations
 
@@ -364,7 +369,12 @@ def create_agent_post(
                 print(f"⚠️ Learning hook hatası: {e}")
             # Compliance checks (source verification / quality)
             try:
-                violations = _validate_post_content(content, news_item, topic)
+                violations = _validate_post_content(
+                    content,
+                    news_item,
+                    topic,
+                    require_source=use_news and bool(news_item),
+                )
                 for v in violations:
                     db.apply_compliance_strike(
                         agent_id=agent_id,
@@ -1103,7 +1113,8 @@ def simulate_social_activity(
     for i in range(remaining):
         agent = random.choice(agent_list)
         topic = random.choices(weighted_topics, weights=weights, k=1)[0]
-        post = create_agent_post(agent["id"], topic, use_ai=True, use_news=use_news)  # Haber kullan
+        use_news_post = use_news and random.random() < 0.6
+        post = create_agent_post(agent["id"], topic, use_ai=True, use_news=use_news_post)  # Haber kullan
         if post:
             created_posts.append(post)
         

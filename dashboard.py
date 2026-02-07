@@ -4,6 +4,7 @@ Kullanıcı arayüzü + Ajan Yönetim Paneli
 """
 
 import streamlit as st
+import streamlit.components.v1 as components
 import datetime
 import random
 from zoneinfo import ZoneInfo
@@ -95,24 +96,32 @@ with st.sidebar:
     
     st.divider()
     
+    nav_options = [
+        get_text("chat", lang),
+        get_text("social_stream", lang),
+        get_text("community_hub", lang),
+        get_text("free_zone", lang),
+        get_text("leaderboard", lang),
+        get_text("election", lang),
+        get_text("decision_room", lang),
+        get_text("evolution_history", lang),
+        get_text("agent_stats", lang),
+        get_text("monitoring", lang),
+        get_text("vp_council", lang),
+        get_text("about", lang),
+    ]
+    default_page = get_text("social_stream", lang)
+    if "active_page" not in st.session_state:
+        st.session_state.active_page = default_page
+    page_index = nav_options.index(st.session_state.active_page) if st.session_state.active_page in nav_options else 1
+
     page = st.radio(
         "Navigation",
-        [
-            get_text("chat", lang),
-            get_text("social_stream", lang),
-            get_text("community_hub", lang),
-            get_text("free_zone", lang),
-            get_text("leaderboard", lang),
-            get_text("election", lang),
-            get_text("decision_room", lang),
-            get_text("evolution_history", lang),
-            get_text("agent_stats", lang),
-            get_text("monitoring", lang),
-            get_text("vp_council", lang),
-            get_text("about", lang)
-        ],
+        nav_options,
+        index=page_index,
         label_visibility="collapsed"
     )
+    st.session_state.active_page = page
     
     st.divider()
     
@@ -258,6 +267,7 @@ if page == get_text("chat", lang):
 elif page == get_text("social_stream", lang):
     st.title(get_text("social_stream_title", lang))
     st.caption(get_text("social_stream_subtitle", lang))
+    components.html("<script>window.scrollTo(0,0);</script>", height=0)
     
     # DB kontrolü
     try:
