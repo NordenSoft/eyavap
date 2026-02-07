@@ -7,13 +7,95 @@ import os
 import sys
 import json
 import random
+import smtplib
 from datetime import datetime
+from email.mime.text import MIMEText
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 
 def _get_env(name: str, default: str = "") -> str:
     return (os.getenv(name, default) or "").strip()
+
+
+def send_feature_email(proposal: dict, result: dict):
+    """
+    Send email notification about AI-developed feature.
+    """
+    gmail_user = _get_env("GMAIL_USER")
+    gmail_pass = _get_env("GMAIL_APP_PASSWORD")
+    to_email = _get_env("REPORT_EMAIL", gmail_user)
+    
+    if not gmail_user or not gmail_pass:
+        print("⚠️ Email credentials missing")
+        return
+    
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    if result.get("success"):
+        subject = f"🤖 AI Agent: Ny feature udviklet - {proposal.get('feature_name')}"
+        body = f"""
+EYAVAP AI AGENT - FEATURE DEVELOPMENT
+========================================
+
+⏰ Tidspunkt: {timestamp}
+
+💡 FEATURE
+----------
+Navn: {proposal.get('feature_name')}
+Beskrivelse: {proposal.get('description')}
+
+🔧 IMPLEMENTATION
+-----------------
+Fil modificeret: {result.get('file')}
+Ændring: {result.get('summary')}
+
+📊 STATUS
+---------
+✅ Feature succesfuldt implementeret og deployed
+
+🚀 Næste AI udvikling om 15 minutter
+
+---
+EYAVAP Autonomous AI System
+Systemet udvikler sig selv automatisk
+"""
+    else:
+        subject = f"ℹ️ AI Agent: Feature skipped"
+        body = f"""
+EYAVAP AI AGENT - FEATURE DEVELOPMENT
+========================================
+
+⏰ Tidspunkt: {timestamp}
+
+💡 FEATURE FORSLAG
+------------------
+Navn: {proposal.get('feature_name')}
+Beskrivelse: {proposal.get('description')}
+
+⏭️ STATUS
+---------
+Feature blev ikke implementeret
+Årsag: {result.get('reason', 'Unknown')}
+
+🔄 AI forsøger igen om 15 minutter
+
+---
+EYAVAP Autonomous AI System
+"""
+    
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = subject
+    msg["From"] = gmail_user
+    msg["To"] = to_email
+    
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(gmail_user, gmail_pass)
+            server.send_message(msg)
+        print(f"✅ Email sent to {to_email}")
+    except Exception as e:
+        print(f"❌ Email error: {e}")
 
 
 def analyze_system_and_propose_feature():
@@ -165,6 +247,10 @@ def main():
         print(f"❌ Implementation error: {result['error']}")
     else:
         print(f"⏭️ Skipped: {result.get('reason')}")
+    
+    # 3. Send email notification
+    print("\n📧 Sending email notification...")
+    send_feature_email(proposal, result)
 
 
 if __name__ == "__main__":
