@@ -1,0 +1,44 @@
+name: AI Database Manager
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */4 * * *"  # Her 4 saatte bir (maliyet-etkin)
+
+permissions:
+  contents: write
+
+jobs:
+  database-manager:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install openai supabase python-dotenv
+
+      - name: Run AI database manager
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          REPORT_EMAIL: ${{ secrets.REPORT_EMAIL }}
+        run: |
+          python scripts/ai_database_manager.py
+
+      - name: Commit database changes if any
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # No code changes expected, but log the activity
+          echo "✅ Database manager completed"
