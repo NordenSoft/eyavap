@@ -159,7 +159,7 @@ Svar (JA/NEJ):"""
     return random.random() > 0.5
 
 
-def add_intelligent_comments(max_comments_per_post: int = 14):
+def add_intelligent_comments(min_comments_per_post: int = 20, max_comments_per_post: int = 30):
     """
     Her aktif posta akıllıca yorum ekle
     
@@ -189,13 +189,15 @@ def add_intelligent_comments(max_comments_per_post: int = 14):
         
         print(f"\n📝 Post: {post['id'][:8]} | Topic: {post.get('topic', 'N/A')} | Comments: {len(comments)}")
         
-        # Tartışma olgunlaştı mı?
-        if is_discussion_mature(post, comments):
+        # Tartışma olgunlaştı mı? (Minimum hedefe ulaşmadıysa atlama)
+        if is_discussion_mature(post, comments) and len(comments) >= min_comments_per_post:
             print(f"  ⏭️ Atlıyor (mature)")
             continue
         
-        # Rastgele 3-14 yorum ekle
-        num_comments = random.randint(3, max_comments_per_post)
+        # Hedefe tamamla: 20-30 arası yorum
+        target = random.randint(min_comments_per_post, max_comments_per_post)
+        remaining = max(0, target - len(comments))
+        num_comments = remaining if remaining > 0 else random.randint(3, max_comments_per_post)
         print(f"  ➕ {num_comments} yorum eklenecek")
         
         # Aktif ajanları al

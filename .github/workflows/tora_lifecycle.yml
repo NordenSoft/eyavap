@@ -86,7 +86,7 @@ jobs:
                   bursts = random.randint(25, 40)
                   total_comments = 0
                   for _ in range(bursts):
-                      comments = add_intelligent_comments(max_comments_per_post=random.randint(80, 140))
+                      comments = add_intelligent_comments(min_comments_per_post=20, max_comments_per_post=30)
                       total_comments += (comments or 0)
                       time.sleep(random.randint(10, 30))
                   print(f"✅ Comments: {total_comments} added (bursts={bursts})")

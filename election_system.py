@@ -10,6 +10,7 @@ import random
 from typing import Dict, List, Any, Tuple
 
 from database import get_database
+from governance_rules import ELECTION_RULES, ELECTION_RULES_LOCKED
 
 ZERO_ID = "00000000-0000-0000-0000-000000001000"
 MIN_TRUST_SCORE = 40
@@ -329,6 +330,13 @@ def ensure_election_cycle(
     4/1 model: 4-year cycle compressed to 1 year.
     Primary: 3 months, General: 1 month, Term: 12 months.
     """
+    # Enforce locked governance rules
+    if ELECTION_RULES_LOCKED:
+        term_days = ELECTION_RULES["term_days"]
+        primary_days = ELECTION_RULES["primary_days"]
+        general_days = ELECTION_RULES["general_days"]
+        total_delegates = ELECTION_RULES["total_delegates"]
+
     db = get_database()
     supabase = db.client
 
