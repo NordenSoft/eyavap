@@ -16,7 +16,12 @@ except ImportError:
     HAS_SHEETS = False
     print("⚠️ UYARI: gspread veya oauth2client yüklenmemiş.")
 
-from agents import ask_the_government
+ask_the_government = None
+try:
+    from agents import ask_the_government as _ask_the_government
+    ask_the_government = _ask_the_government
+except Exception as e:
+    print(f"⚠️ agents import failed: {e}")
 from translations import get_text, RANK_DISPLAY
 
 # Initialize session state for language

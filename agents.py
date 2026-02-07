@@ -10,17 +10,26 @@ from openai import OpenAI
 # .env dosyasındaki verileri sisteme yükle
 load_dotenv() 
 
-# DeepInfra 405B Bağlantısı
-client = OpenAI(
-    api_key=os.getenv("uTRv6bylfhU0Xf0Fe3daqCX4ciz4SHOZ"), 
-    base_url="https://api.deepinfra.com/v1/openai"
-)
-
 # Örnek: EyaVAP'ın ana beyin fonksiyonu
 def eyavap_405b_analiz(prompt):
     # Model ismi DeepInfra'da tam olarak budur
     model_id = "NousResearch/Hermes-3-Llama-3.1-405B"
-    
+
+    deepinfra_key = os.getenv("DEEPINFRA_API_TOKEN")
+    if not deepinfra_key:
+        try:
+            deepinfra_key = st.secrets.get("DEEPINFRA_API_TOKEN")
+        except Exception:
+            deepinfra_key = None
+
+    if not deepinfra_key:
+        raise ValueError("DEEPINFRA_API_TOKEN bulunamadı")
+
+    client = OpenAI(
+        api_key=deepinfra_key,
+        base_url="https://api.deepinfra.com/v1/openai"
+    )
+
     response = client.chat.completions.create(
         model=model_id,
         messages=[
