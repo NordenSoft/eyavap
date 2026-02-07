@@ -53,20 +53,14 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
     :root {
       --eyavap-bg: #fafafa;
       --eyavap-card: #ffffff;
-      --eyavap-text: #111827;
-      --eyavap-muted: #6b7280;
-      --eyavap-border: #e5e7eb;
-      --eyavap-accent: #6c5ce7;
+      --eyavap-text: #1a1a1a;
+      --eyavap-muted: #737373;
+      --eyavap-border: #e5e5e5;
+      --eyavap-accent: #0095f6;
       --eyavap-accent-2: #00b894;
-    }
-
-    * {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
     }
 
     body, [data-testid="stAppViewContainer"] {
@@ -76,43 +70,59 @@ st.markdown(
 
     [data-testid="stAppViewContainer"] > div {
       background: var(--eyavap-bg);
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
     }
 
     [data-testid="stSidebar"] {
       background: #ffffff;
       border-right: 1px solid var(--eyavap-border);
     }
+    
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] {
+      font-size: 0.85rem;
+    }
 
-    /* Buttons and interactive accents */
+    /* Fix dark dropdowns */
+    .stSelectbox > div > div {
+      background: #ffffff !important;
+      color: var(--eyavap-text) !important;
+      border: 1px solid var(--eyavap-border);
+    }
+    
+    [data-baseweb="select"] {
+      background: #ffffff !important;
+    }
+    
+    [data-baseweb="select"] > div {
+      background: #ffffff !important;
+      color: var(--eyavap-text) !important;
+    }
+
+    /* Buttons */
     .stButton > button {
-      background: linear-gradient(90deg, var(--eyavap-accent), var(--eyavap-accent-2));
+      background: var(--eyavap-accent);
       color: #ffffff !important;
       border: 0;
-      border-radius: 10px;
+      border-radius: 8px;
       font-weight: 600;
     }
     .stButton > button:hover {
-      filter: brightness(1.05);
+      background: #0081d6;
     }
 
-    /* Titles and section headers */
-    h1, h2, h3, h4, h5 {
-      color: var(--eyavap-text);
-      font-weight: 700;
-    }
-
-    p, div, span {
-      color: var(--eyavap-text);
+    /* Titles */
+    h1, h2, h3 {
+      color: var(--eyavap-text) !important;
     }
 
     /* Metrics */
     [data-testid="stMetricValue"] {
       color: var(--eyavap-accent);
-      font-weight: 700;
     }
     [data-testid="stMetricLabel"] {
       color: var(--eyavap-muted);
-      font-weight: 500;
     }
 
     /* Feed cards */
@@ -120,9 +130,8 @@ st.markdown(
       background: var(--eyavap-card);
       border: 1px solid var(--eyavap-border);
       border-radius: 8px;
-      padding: 14px 16px;
-      margin: 10px 0;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      padding: 12px;
+      margin: 12px 0;
     }
     .post-header {
       display: flex;
@@ -131,9 +140,9 @@ st.markdown(
       margin-bottom: 10px;
     }
     .avatar {
-      font-size: 1.8rem;
-      width: 40px;
-      height: 40px;
+      font-size: 1.6rem;
+      width: 36px;
+      height: 36px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -143,9 +152,10 @@ st.markdown(
     }
     .header-info {
       flex: 1;
+      min-width: 0;
     }
     .header-name {
-      font-weight: 700;
+      font-weight: 600;
       color: var(--eyavap-text) !important;
       font-size: 0.9rem;
     }
@@ -159,11 +169,11 @@ st.markdown(
       font-size: 0.9rem;
       line-height: 1.5;
       margin-bottom: 10px;
-      font-weight: 400;
+      word-wrap: break-word;
     }
     .post-actions {
       display: flex;
-      gap: 16px;
+      gap: 14px;
       align-items: center;
       margin-top: 8px;
       padding-top: 8px;
@@ -173,24 +183,11 @@ st.markdown(
       color: var(--eyavap-text) !important;
       font-size: 0.85rem;
       font-weight: 500;
-      cursor: pointer;
-    }
-    .action-item:hover {
-      color: var(--eyavap-accent) !important;
     }
     .post-stats {
       color: var(--eyavap-muted) !important;
       font-size: 0.75rem;
       margin-top: 6px;
-      font-weight: 500;
-    }
-    .chip {
-      background: #f3f4f6;
-      border: 1px solid var(--eyavap-border);
-      border-radius: 999px;
-      padding: 4px 10px;
-      color: var(--eyavap-text) !important;
-      font-weight: 500;
     }
     </style>
     """,
