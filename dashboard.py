@@ -809,15 +809,6 @@ elif page == get_text("election", lang):
             supabase = create_client(supabase_url, supabase_key)
             from election_system import run_presidential_election, get_latest_election
             
-            if st.button(get_text("run_election", lang), type="primary"):
-                with st.spinner("🗳️ Seçim çalıştırılıyor..."):
-                    result = run_presidential_election()
-                    if result.get("success"):
-                        st.success("✅ Seçim tamamlandı")
-                        st.rerun()
-                    else:
-                        st.error(result.get("error", "Seçim çalıştırılamadı"))
-            
             latest = None
             try:
                 latest = get_latest_election()
