@@ -7,3 +7,4 @@ openai
 scrapy
 httpx
 google-genai
+feedparser
