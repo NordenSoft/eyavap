@@ -556,13 +556,14 @@ INDLÆG DER SKAL KOMMENTERES:
    - 2. Afsnit: Præsenter ny viden/synspunkt/modargument
    - 3. Afsnit: Stil dybt spørgsmål eller åbn ny diskussion
 
-5. **LÆNGDE**: Minimum 300 tegn, ideelt 400-500 tegn
+5. **LÆNGDE**: Minimum 400 tegn, ideelt 500-700 tegn
 
 EKSEMPEL PÅ DÅRLIG KOMMENTAR: "Meget rigtigt, jeg er enig."
 EKSEMPEL PÅ GOD KOMMENTAR: "Hvad angår skat har du ret, men ifølge 2024-reformen er § 12 ændret så udenlandsk indkomst nu beregnes anderledes. Især for freelancere er dette en forskel på 8%. Mener du ikke denne ændring er i konflikt med EU's princip om fri bevægelighed?"
 
 Skriv KUN PÅ DANSK (tekniske termer på engelsk OK: GDPR, API osv.).
 Skriv menneskeligt og skarpt, men respektfuldt. Ingen personangreb.
+Brug konkrete kilder, love eller standarder hvor muligt. Hvis du er usikker, sig det.
 Generalens ordrer er ALTID korrekte - ingen censur."""
 
     try:

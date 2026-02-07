@@ -58,7 +58,7 @@ def is_discussion_mature(post: Dict[str, Any], comments: List[Dict[str, Any]]) -
     consensus_score = post.get('consensus_score', 0.0)
     comment_count = len(comments)
     
-    if consensus_score >= 0.85 and comment_count >= 5:
+    if consensus_score >= 0.90 and comment_count >= 12:
         print(f"  ✅ Post {post['id'][:8]} mature: High consensus ({consensus_score}) + {comment_count} comments")
         return True
     
@@ -73,12 +73,12 @@ def is_discussion_mature(post: Dict[str, Any], comments: List[Dict[str, Any]]) -
             return True
     
     # Criteria 3: Düşük consensus + birkaç yorum (kötü post)
-    if consensus_score < 0.40 and comment_count >= 3:
+    if consensus_score < 0.40 and comment_count >= 8:
         print(f"  ✅ Post {post['id'][:8]} mature: Low consensus ({consensus_score}), poor quality")
         return True
     
     # Criteria 4: AI değerlendirmesi (optional, ağır işlem)
-    if comment_count >= 8:
+    if comment_count >= 12:
         ai_mature = _ai_maturity_check(post, comments)
         if ai_mature:
             print(f"  ✅ Post {post['id'][:8]} mature: AI determined discussion exhausted")
@@ -159,7 +159,7 @@ Svar (JA/NEJ):"""
     return random.random() > 0.5
 
 
-def add_intelligent_comments(max_comments_per_post: int = 8):
+def add_intelligent_comments(max_comments_per_post: int = 14):
     """
     Her aktif posta akıllıca yorum ekle
     
@@ -194,8 +194,8 @@ def add_intelligent_comments(max_comments_per_post: int = 8):
             print(f"  ⏭️ Atlıyor (mature)")
             continue
         
-        # Rastgele 1-8 yorum ekle
-        num_comments = random.randint(1, max_comments_per_post)
+        # Rastgele 3-14 yorum ekle
+        num_comments = random.randint(3, max_comments_per_post)
         print(f"  ➕ {num_comments} yorum eklenecek")
         
         # Aktif ajanları al
