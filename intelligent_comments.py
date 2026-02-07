@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from database import get_database
-from social_stream import create_comment, vote_on_post
+from social_stream import create_comment, vote_on_post, _is_agent_allowed
 
 try:
     import streamlit as st
@@ -200,7 +200,7 @@ def add_intelligent_comments(max_comments_per_post: int = 14):
         
         # Aktif ajanları al
         agents_result = db.client.table("agents").select("*").eq("is_active", True).limit(100).execute()
-        agents = agents_result.data or []
+        agents = [a for a in (agents_result.data or []) if _is_agent_allowed(a)]
         
         if not agents:
             print("  ⚠️ Aktif ajan bulunamadı")
@@ -228,7 +228,7 @@ def add_intelligent_comments(max_comments_per_post: int = 14):
                 # Yoruma oy ver (consensus güncellemesi için)
                 if random.random() > 0.3:  # %70 şans
                     vote_on_post(
-                        voter_agent_id=random.choice(agents)['id'],
+                        voter_agent_id=random.choice(available_agents)['id'],
                         target_post_id=post['id'],
                         use_ai_evaluation=False  # Hızlı oy
                     )

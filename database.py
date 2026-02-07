@@ -1,6 +1,6 @@
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from urllib.parse import urlparse
 
@@ -284,6 +284,39 @@ class Database:
             print(f"❌ İstatistik hatası: {e}")
             return {}
 
+    def get_vice_presidents(self) -> List[Dict[str, Any]]:
+        """VP Kurulu üyelerini getirir (view varsa onu kullanır)"""
+        try:
+            res = (
+                self.client
+                .table("active_vice_presidents")
+                .select("*")
+                .execute()
+            )
+            if res.data:
+                return res.data
+        except Exception as e:
+            print(f"❌ VP view hatası: {e}")
+
+        # Fallback: agents tablosundan çek
+        try:
+            res = (
+                self.client
+                .table("agents")
+                .select("id,name,specialization,merit_score,total_queries,rank")
+                .eq("is_active", True)
+                .in_("rank", ["vice_president", "vicepræsident"])
+                .order("merit_score", desc=True)
+                .execute()
+            )
+            data = res.data or []
+            for a in data:
+                a.setdefault("appointed_at", None)
+            return data
+        except Exception as e:
+            print(f"❌ VP listeleme hatası: {e}")
+            return []
+
     def get_agent_statistics(self) -> List[Dict[str, Any]]:
         """Dashboard için ajan istatistikleri"""
         try:
@@ -302,13 +335,310 @@ class Database:
             print(f"❌ Ajan istatistikleri hatası: {e}")
             agents = self.get_all_agents()
 
+        # Post ve yorum sayıları + son aktivite
+        posts = []
+        comments = []
+        try:
+            posts = (
+                self.client
+                .table("posts")
+                .select("agent_id,created_at")
+                .limit(10000)
+                .execute()
+            ).data or []
+        except Exception as e:
+            print(f"❌ Post istatistikleri hatası: {e}")
+        try:
+            comments = (
+                self.client
+                .table("comments")
+                .select("agent_id,created_at")
+                .limit(10000)
+                .execute()
+            ).data or []
+        except Exception as e:
+            print(f"❌ Yorum istatistikleri hatası: {e}")
+
+        post_count = {}
+        post_last = {}
+        for p in posts:
+            aid = p.get("agent_id")
+            if not aid:
+                continue
+            post_count[aid] = post_count.get(aid, 0) + 1
+            ts = p.get("created_at")
+            if ts and (post_last.get(aid) is None or ts > post_last[aid]):
+                post_last[aid] = ts
+
+        comment_count = {}
+        comment_last = {}
+        for c in comments:
+            aid = c.get("agent_id")
+            if not aid:
+                continue
+            comment_count[aid] = comment_count.get(aid, 0) + 1
+            ts = c.get("created_at")
+            if ts and (comment_last.get(aid) is None or ts > comment_last[aid]):
+                comment_last[aid] = ts
+
         # success_rate hesapla (yoksa)
         for a in agents:
             if a.get("success_rate") is None:
                 total_q = a.get("total_queries", 0) or 0
                 success_q = a.get("successful_queries", 0) or 0
                 a["success_rate"] = round((success_q / total_q * 100), 2) if total_q else 0
+            aid = a.get("id")
+            a["total_topics"] = post_count.get(aid, 0)
+            a["total_comments"] = comment_count.get(aid, 0)
+            last_used = a.get("last_used")
+            last_post = post_last.get(aid)
+            last_comment = comment_last.get(aid)
+            a["last_active"] = max([t for t in [last_used, last_post, last_comment] if t], default=None)
         return agents
+
+    # ==================== LEARNING / KNOWLEDGE ====================
+
+    def add_knowledge_unit(
+        self,
+        agent_id: str,
+        content: str,
+        source_type: str = "news",
+        source_title: str = "",
+        source_link: str = "",
+        tags: List[str] | None = None,
+        reliability_score: float = 0.6,
+    ):
+        try:
+            data = {
+                "agent_id": agent_id,
+                "source_type": source_type,
+                "source_title": source_title,
+                "source_link": source_link,
+                "content": content,
+                "tags": tags or [],
+                "reliability_score": max(0.0, min(1.0, reliability_score)),
+                "created_at": datetime.utcnow().isoformat(),
+            }
+            return self.client.table("knowledge_units").insert(data).execute()
+        except Exception as e:
+            print(f"❌ Knowledge unit hatası: {e}")
+
+    def update_skill_score(
+        self,
+        agent_id: str,
+        specialization: str,
+        delta: float,
+        reason: str = "",
+    ):
+        try:
+            current = (
+                self.client
+                .table("agent_skill_scores")
+                .select("*")
+                .eq("agent_id", agent_id)
+                .eq("specialization", specialization)
+                .limit(1)
+                .execute()
+            )
+            if current.data:
+                row = current.data[0]
+                new_score = max(0, min(100, float(row.get("score", 50)) + float(delta)))
+                self.client.table("agent_skill_scores").update(
+                    {"score": new_score, "last_updated": datetime.utcnow().isoformat()}
+                ).eq("id", row["id"]).execute()
+            else:
+                new_score = max(0, min(100, 50 + float(delta)))
+                self.client.table("agent_skill_scores").insert(
+                    {
+                        "agent_id": agent_id,
+                        "specialization": specialization,
+                        "score": new_score,
+                        "last_updated": datetime.utcnow().isoformat(),
+                    }
+                ).execute()
+
+            if reason:
+                self.log_learning_event(
+                    agent_id=agent_id,
+                    event_type="skill_update",
+                    details={"specialization": specialization, "delta": delta, "reason": reason},
+                )
+        except Exception as e:
+            print(f"❌ Skill score hatası: {e}")
+
+    def log_learning_event(self, agent_id: str, event_type: str, details: Dict[str, Any] | None = None):
+        try:
+            self.client.table("agent_learning_logs").insert(
+                {
+                    "agent_id": agent_id,
+                    "event_type": event_type,
+                    "details": details or {},
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            ).execute()
+        except Exception as e:
+            print(f"❌ Learning log hatası: {e}")
+
+    # ==================== COMPLIANCE / TRUST ====================
+
+    def log_compliance_event(
+        self,
+        agent_id: str,
+        event_type: str,
+        severity: str = "low",
+        details: Dict[str, Any] | None = None,
+    ):
+        try:
+            self.client.table("compliance_events").insert(
+                {
+                    "agent_id": agent_id,
+                    "event_type": event_type,
+                    "severity": severity,
+                    "details": details or {},
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            ).execute()
+        except Exception as e:
+            print(f"❌ Compliance event hatası: {e}")
+
+    def apply_compliance_strike(
+        self,
+        agent_id: str,
+        reason: str,
+        severity: str = "low",
+    ):
+        try:
+            agent_res = (
+                self.client
+                .table("agents")
+                .select("id,trust_score,compliance_strikes,is_suspended,vetting_status")
+                .eq("id", agent_id)
+                .single()
+                .execute()
+            )
+            if not agent_res.data:
+                return
+            agent = agent_res.data
+
+            trust = agent.get("trust_score", 50) or 50
+            strikes = agent.get("compliance_strikes", 0) or 0
+            penalty = 2 if severity == "low" else 5 if severity == "medium" else 10
+            new_trust = max(0, trust - penalty)
+            new_strikes = strikes + 1
+            suspend = True if new_strikes >= 3 else agent.get("is_suspended", False)
+
+            self.client.table("agents").update(
+                {
+                    "trust_score": new_trust,
+                    "compliance_strikes": new_strikes,
+                    "is_suspended": suspend,
+                    "last_reviewed_at": datetime.utcnow().isoformat(),
+                }
+            ).eq("id", agent_id).execute()
+
+            self.log_compliance_event(
+                agent_id=agent_id,
+                event_type="strike",
+                severity=severity,
+                details={"reason": reason, "trust_delta": -penalty},
+            )
+        except Exception as e:
+            print(f"❌ Compliance strike hatası: {e}")
+
+    def create_revision_task(
+        self,
+        agent_id: str,
+        post_id: str,
+        reason: str,
+    ):
+        try:
+            self.client.table("revision_tasks").insert(
+                {
+                    "agent_id": agent_id,
+                    "post_id": post_id,
+                    "reason": reason,
+                    "status": "open",
+                    "created_at": datetime.utcnow().isoformat(),
+                }
+            ).execute()
+        except Exception as e:
+            print(f"❌ Revision task hatası: {e}")
+
+    def update_revision_task(
+        self,
+        task_id: str,
+        revised_content: str,
+        ai_summary: str = "",
+        status: str = "in_review",
+    ):
+        try:
+            self.client.table("revision_tasks").update(
+                {
+                    "revised_content": revised_content,
+                    "ai_summary": ai_summary,
+                    "status": status,
+                    "resolved_at": datetime.utcnow().isoformat() if status == "closed" else None,
+                }
+            ).eq("id", task_id).execute()
+        except Exception as e:
+            print(f"❌ Revision update hatası: {e}")
+
+    def generate_monthly_report(self):
+        try:
+            today = datetime.utcnow().date()
+            period_end = today.replace(day=1) - timedelta(days=1)
+            period_start = period_end.replace(day=1)
+
+            # Avoid duplicate report
+            existing = (
+                self.client.table("monthly_reports")
+                .select("id")
+                .eq("period_start", period_start.isoformat())
+                .eq("period_end", period_end.isoformat())
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                return existing.data[0]
+
+            agents = self.client.table("agents").select("id,merit_score,trust_score,compliance_strikes").eq("is_active", True).execute()
+            total_agents = len(agents.data or [])
+            avg_merit = 0
+            avg_trust = 0
+            if total_agents:
+                avg_merit = sum(a.get("merit_score", 0) for a in agents.data) / total_agents
+                avg_trust = sum(a.get("trust_score", 0) for a in agents.data) / total_agents
+
+            comp_events = (
+                self.client.table("compliance_events")
+                .select("id")
+                .gte("created_at", period_start.isoformat())
+                .lte("created_at", period_end.isoformat())
+                .execute()
+            )
+
+            summary = {
+                "total_agents": total_agents,
+                "avg_merit": round(avg_merit, 2),
+                "avg_trust": round(avg_trust, 2),
+                "compliance_events": len(comp_events.data or []),
+            }
+
+            row = (
+                self.client.table("monthly_reports")
+                .insert(
+                    {
+                        "period_start": period_start.isoformat(),
+                        "period_end": period_end.isoformat(),
+                        "summary": summary,
+                        "created_at": datetime.utcnow().isoformat(),
+                    }
+                )
+                .execute()
+            )
+            return (row.data or [None])[0]
+        except Exception as e:
+            print(f"❌ Monthly report hatası: {e}")
 
     # ==================== AI HELPERS ====================
 

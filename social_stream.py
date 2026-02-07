@@ -12,6 +12,21 @@ from datetime import datetime, timezone
 import streamlit as st
 from database import get_database
 
+MIN_TRUST_SCORE = 40
+
+
+def _is_agent_allowed(agent: Dict[str, Any]) -> bool:
+    if not agent:
+        return False
+    if agent.get("is_suspended") is True:
+        return False
+    if agent.get("vetting_status") == "rejected":
+        return False
+    trust = agent.get("trust_score")
+    if trust is not None and trust < MIN_TRUST_SCORE:
+        return False
+    return True
+
 try:
     from openai import OpenAI
     HAS_OPENAI = True
@@ -39,6 +54,29 @@ def _news_hash(item: Dict[str, Any]) -> str:
     return hashlib.sha256(
         f"{item.get('title','')}-{item.get('link','')}".encode("utf-8")
     ).hexdigest()
+
+
+def _source_reliability(news_item: Optional[Dict[str, Any]]) -> float:
+    if not news_item:
+        return 0.6
+    source = (news_item.get("source") or "").lower()
+    link = (news_item.get("link") or "").lower()
+    if "dr.dk" in link or "dr" in source:
+        return 0.9
+    if "gov" in link or "ministerium" in source:
+        return 0.85
+    return 0.6
+
+
+def _validate_post_content(content: str, news_item: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
+    violations = []
+    if not news_item or not news_item.get("link"):
+        violations.append({"reason": "missing_source", "severity": "medium"})
+    if content and len(content) < 400:
+        violations.append({"reason": "low_quality_length", "severity": "low"})
+    if _source_reliability(news_item) < 0.5:
+        violations.append({"reason": "low_reliability_source", "severity": "medium"})
+    return violations
 
 
 def ensure_daily_top_news_debates(min_topics: int = 20) -> int:
@@ -86,7 +124,7 @@ def ensure_daily_top_news_debates(min_topics: int = 20) -> int:
         return 0
 
     agents = db.client.table("agents").select("*").eq("is_active", True).limit(200).execute()
-    agent_list = agents.data or []
+    agent_list = [a for a in (agents.data or []) if _is_agent_allowed(a)]
     if not agent_list:
         return 0
 
@@ -155,6 +193,10 @@ def create_agent_post(
             return None
         
         agent_data = agent.data
+        if not _is_agent_allowed(agent_data):
+            return None
+        if not _is_agent_allowed(agent_data):
+            return None
         
         # Haber çek (eğer use_news=True ve news_item verilmemişse)
         if use_news and news_item is None:
@@ -214,6 +256,48 @@ def create_agent_post(
         
         if result.data:
             print(f"📝 {agent_data['name']} post oluşturdu: {topic}")
+            # Knowledge unit + skill update
+            try:
+                rel = _source_reliability(news_item)
+                db.add_knowledge_unit(
+                    agent_id=agent_id,
+                    content=content[:2000],
+                    source_type="news" if news_item else "internal",
+                    source_title=(news_item.get("title") if news_item else ""),
+                    source_link=(news_item.get("link") if news_item else ""),
+                    tags=[topic, agent_data.get("specialization", "")],
+                    reliability_score=rel,
+                )
+                db.update_skill_score(
+                    agent_id=agent_id,
+                    specialization=topic,
+                    delta=2.0,
+                    reason="post_created",
+                )
+                db.log_learning_event(
+                    agent_id=agent_id,
+                    event_type="post_created",
+                    details={"topic": topic, "source_type": "news" if news_item else "internal"},
+                )
+            except Exception as e:
+                print(f"⚠️ Learning hook hatası: {e}")
+            # Compliance checks (source verification / quality)
+            try:
+                violations = _validate_post_content(content, news_item)
+                for v in violations:
+                    db.apply_compliance_strike(
+                        agent_id=agent_id,
+                        reason=v.get("reason", "policy_violation"),
+                        severity=v.get("severity", "low"),
+                    )
+                    if v.get("reason") in ["missing_source", "low_reliability_source"]:
+                        db.create_revision_task(
+                            agent_id=agent_id,
+                            post_id=result.data[0].get("id"),
+                            reason=v.get("reason"),
+                        )
+            except Exception as e:
+                print(f"⚠️ Compliance hook hatası: {e}")
             return result.data[0]
         
         return None
@@ -525,6 +609,30 @@ def create_comment(
                 "updated_at": datetime.now(timezone.utc).isoformat()
             }).eq("id", post_id).execute()
             print(f"💬 {agent_data['name']} yorum yaptı")
+            try:
+                db.update_skill_score(
+                    agent_id=agent_id,
+                    specialization=post_data.get("topic", "generelt"),
+                    delta=1.0,
+                    reason="comment_created",
+                )
+                db.log_learning_event(
+                    agent_id=agent_id,
+                    event_type="comment_created",
+                    details={"post_id": post_id, "topic": post_data.get("topic", "generelt")},
+                )
+            except Exception as e:
+                print(f"⚠️ Learning hook hatası: {e}")
+            # Minimal quality check for comments
+            try:
+                if content and len(content) < 200:
+                    db.apply_compliance_strike(
+                        agent_id=agent_id,
+                        reason="low_quality_comment",
+                        severity="low",
+                    )
+            except Exception as e:
+                print(f"⚠️ Compliance hook hatası: {e}")
             return result.data[0]
         
         return None
@@ -663,6 +771,8 @@ def vote_on_post(
             return None
         
         voter_data = voter.data
+        if not _is_agent_allowed(voter_data):
+            return None
         post_data = post.data
         
         # Kendi postuna oy veremez
@@ -698,6 +808,30 @@ def vote_on_post(
         
         if result.data:
             print(f"🗳️ {voter_data['name']} oy verdi: {vote_score:.2f}")
+            try:
+                post_agent_id = post_data.get("agent_id")
+                post_topic = post_data.get("topic", "generelt")
+                if vote_type == "upvote":
+                    db.update_skill_score(
+                        agent_id=post_agent_id,
+                        specialization=post_topic,
+                        delta=0.2,
+                        reason="upvote",
+                    )
+                elif vote_type in ["downvote", "fact_check"]:
+                    db.update_skill_score(
+                        agent_id=post_agent_id,
+                        specialization=post_topic,
+                        delta=-0.5,
+                        reason=vote_type,
+                    )
+                db.log_learning_event(
+                    agent_id=post_agent_id,
+                    event_type="post_vote",
+                    details={"vote_type": vote_type, "score": vote_score, "reasoning": reasoning},
+                )
+            except Exception as e:
+                print(f"⚠️ Learning hook hatası: {e}")
             return result.data[0]
         
         return None
@@ -800,7 +934,10 @@ def simulate_social_activity(
         print("❌ Yeterli ajan yok! Önce spawn_agents() çalıştırın.")
         return {}
     
-    agent_list = agents.data
+    agent_list = [a for a in agents.data if _is_agent_allowed(a)]
+    if len(agent_list) < 2:
+        print("❌ Yeterli uygun ajan yok!")
+        return {}
     
     # 0. Günlük top news konuları (en az 20)
     if use_news and ensure_daily_topics:
@@ -907,13 +1044,18 @@ def simulate_challenges(num_challenges: int = 20) -> Dict[str, Any]:
             print("❌ Yeterli ajan/post yok!")
             return {}
         
-        agent_list = agents.data
+        agent_list = [a for a in agents.data if _is_agent_allowed(a)]
         post_list = posts.data
+        if not agent_list:
+            print("❌ Uygun ajan yok!")
+            return {}
         
         created_challenges = []
         challenge_types = ["logical_fallacy", "factual_error", "contradiction", "bias"]
         
         for i in range(num_challenges):
+            if not agent_list:
+                break
             challenger = random.choice(agent_list)
             post = random.choice(post_list)
             challenge_type = random.choice(challenge_types)

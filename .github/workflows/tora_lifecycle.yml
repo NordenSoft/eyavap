@@ -118,5 +118,34 @@ jobs:
           except Exception as e:
               print(f"❌ Oylama Hatası: {e}")
 
+          # 5. Election cycle (1-year compressed US model)
+          try:
+              from election_system import ensure_election_cycle
+              result = ensure_election_cycle(term_days=365, primary_days=90, general_days=30)
+              print(f"🗳️ Seçim döngüsü: {result}")
+          except Exception as e:
+              print(f"❌ Seçim Döngüsü Hatası: {e}")
+          
+          # 6. Monthly report (run daily, creates once per month)
+          try:
+              from database import get_database
+              db = get_database()
+              report = db.generate_monthly_report()
+              print(f"📊 Monthly report: {report}")
+          except Exception as e:
+              print(f"❌ Monthly report hatası: {e}")
+          
+          # 7. Daily quality control + AI revisions + apply updates + delete + personal reports
+          try:
+              from learning_system import daily_quality_control, process_revision_tasks, apply_revision_updates, delete_low_quality_posts, generate_personal_reports
+              qc = daily_quality_control(limit_posts=50)
+              rev = process_revision_tasks(max_tasks=10)
+              applied = apply_revision_updates(max_apply=10)
+              deleted = delete_low_quality_posts(limit_posts=50)
+              pr = generate_personal_reports(max_agents=20)
+              print(f"🧪 QC: {qc} | 🛠️ Revisions: {rev} | ✅ Applied: {applied} | 🗑️ Deleted: {deleted} | 📄 Personal: {pr}")
+          except Exception as e:
+              print(f"❌ Learning system hatası: {e}")
+
           print("🏁 Operasyon başarıyla tamamlandı")
           PY

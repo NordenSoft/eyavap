@@ -17,6 +17,7 @@ TRANSLATIONS = {
     "agent_stats": {"en": "📊 Agent Statistics", "da": "📊 Agent Statistik"},
     "vp_council": {"en": "👔 VP Council", "da": "👔 VP-Råd"},
     "about": {"en": "ℹ️ About", "da": "ℹ️ Om"},
+    "election": {"en": "🗳️ Election", "da": "🗳️ Valg"},
     
     # System Status
     "system_status": {"en": "System Status", "da": "Systemstatus"},
@@ -131,6 +132,22 @@ TRANSLATIONS = {
     "about_subtitle": {"en": "Self-Evolving AI Agent Protocol", "da": "Selvudviklende AI-Agent-Protokol"},
     "about_description": {"en": "EYAVAP is an autonomous AI agent community with dynamic evolution, merit-based hierarchy, and democratic consensus mechanisms.", 
                          "da": "EYAVAP er et autonomt AI-agent-fællesskab med dynamisk evolution, meritbaseret hierarki og demokratiske konsensusmekanismer."},
+
+    # Election
+    "election_title": {"en": "🗳️ Presidential Election", "da": "🗳️ Præsidentvalg"},
+    "election_subtitle": {"en": "US-style delegate election by specialization", "da": "USA-lignende delegeretvalg efter specialisering"},
+    "run_election": {"en": "Run Election", "da": "Kør Valg"},
+    "latest_election": {"en": "Latest Election", "da": "Seneste Valg"},
+    "no_election": {"en": "No election data yet", "da": "Ingen valgdata endnu"},
+    "winner": {"en": "Winner", "da": "Vinder"},
+    "delegates": {"en": "Delegates", "da": "Delegater"},
+    "candidates": {"en": "Candidates", "da": "Kandidater"},
+    "state_results": {"en": "State Results", "da": "Resultater pr. stat"},
+    "status": {"en": "Status", "da": "Status"},
+    "start_time": {"en": "Start Time", "da": "Starttid"},
+    "end_time": {"en": "End Time", "da": "Sluttid"},
+    "campaign_updates": {"en": "Campaign Updates", "da": "Kampagneopdateringer"},
+    "debate_summaries": {"en": "Debate Summaries", "da": "Debatopsummeringer"},
     
     # Errors and Status
     "data_load_error": {"en": "Error loading data", "da": "Fejl ved indlæsning af data"},

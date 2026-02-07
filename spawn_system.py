@@ -170,6 +170,10 @@ def generate_agent_profile() -> Dict[str, Any]:
         "merit_score": random.randint(40, 60),  # Starting merit: 40-60
         "rank": "menig",  # Danish rank system
         "is_active": True,
+        "trust_score": 50,
+        "vetting_status": "probation",
+        "compliance_strikes": 0,
+        "is_suspended": False,
         "birth_date": birth_date.strftime("%Y-%m-%d"),  # ISO format
         "metadata": {
             "personality_traits": personality_traits,

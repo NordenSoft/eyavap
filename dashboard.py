@@ -23,7 +23,7 @@ try:
     ask_the_government = _ask_the_government
 except Exception as e:
     print(f"⚠️ agents import failed: {e}")
-from translations import get_text, RANK_DISPLAY
+from translations import get_text, RANK_DISPLAY, get_rank_display
 
 # Copenhagen time formatting helper
 def format_copenhagen_time(timestamp: str) -> str:
@@ -100,6 +100,7 @@ with st.sidebar:
             get_text("chat", lang),
             get_text("social_stream", lang),
             get_text("leaderboard", lang),
+            get_text("election", lang),
             get_text("decision_room", lang),
             get_text("evolution_history", lang),
             get_text("agent_stats", lang),
@@ -422,82 +423,276 @@ elif page == get_text("leaderboard", lang):
                 query = query.eq("ethnicity", ethnicity_filter)
             
             response = query.execute()
+            zero_id = "00000000-0000-0000-0000-000000001000"
             
             if response.data:
-                # Top 3 özel gösterim
-                st.subheader("🥇 Top 3")
+                agents_filtered = [
+                    a for a in response.data
+                    if a.get("id") != zero_id and a.get("name") != "0"
+                ]
                 
-                top3 = response.data[:3]
-                cols = st.columns(3)
-                
-                medals = ["🥇", "🥈", "🥉"]
-                for i, agent in enumerate(top3):
-                    with cols[i]:
-                        st.markdown(f"### {medals[i]} {agent['name']}")
-                        st.metric("Liyakat", f"{agent['merit_score']}/100")
-                        st.caption(f"🎖️ {agent['rank']}")
-                        st.caption(f"🌍 {agent.get('ethnicity', 'N/A')}")
-                        st.caption(f"💼 {agent['specialization']}")
-                
-                st.divider()
-                
-                # Tam liste
-                st.subheader("📊 Tam Liderlik Tablosu")
-                
-                # DataFrame oluştur
-                df_data = []
-                for idx, agent in enumerate(response.data, 1):
-                    rank_icons = {
-                        "soldier": "🪖",
-                        "specialist": "👔",
-                        "senior_specialist": "🎖️",
-                        "vice_president": "⭐"
-                    }
+                if not agents_filtered:
+                    st.info("📭 Henüz ajan yok!")
+                else:
+                    # Liderlik hiyerarşisi
+                    st.subheader("🏛️ Ledelseshierarki" if lang == "da" else "🏛️ Leadership Hierarchy")
                     
-                    df_data.append({
-                        "Sıra": idx,
-                        "İsim": agent['name'],
-                        "Rütbe": f"{rank_icons.get(agent['rank'], '🤖')} {agent['rank']}",
-                        "Liyakat": agent['merit_score'],
-                        "Etnik Köken": agent.get('ethnicity', 'N/A'),
-                        "Uzmanlık": agent['specialization']
-                    })
-                
-                df = pd.DataFrame(df_data)
-                
-                st.dataframe(
-                    df,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "Liyakat": st.column_config.ProgressColumn(
-                            "Liyakat",
-                            min_value=0,
-                            max_value=100,
-                            format="%d"
+                    # Başkan (0 görünmez, sadece görünür başkan gösterilir)
+                    try:
+                        president_res = (
+                            supabase.table("agents")
+                            .select("*")
+                            .eq("is_active", True)
+                            .in_("rank", ["president", "præsident"])
+                            .neq("id", zero_id)
+                            .neq("name", "0")
+                            .order("merit_score", desc=True)
+                            .limit(1)
+                            .execute()
                         )
-                    }
-                )
-                
-                # İstatistikler
-                st.divider()
-                st.subheader("📈 İstatistikler")
-                
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Toplam Ajan", len(response.data))
-                with col2:
-                    avg_merit = sum(a['merit_score'] for a in response.data) / len(response.data)
-                    st.metric("Ort. Liyakat", f"{avg_merit:.1f}")
-                with col3:
-                    vp_count = len([a for a in response.data if a['rank'] == 'vice_president'])
-                    st.metric("VP Sayısı", vp_count)
-                with col4:
-                    unique_ethnicities = len(set(a.get('ethnicity', 'N/A') for a in response.data))
-                    st.metric("Farklı Etnik Köken", unique_ethnicities)
-            
+                        president = (president_res.data or [None])[0]
+                    except Exception:
+                        president = None
+                    
+                    st.markdown("### 👑 Præsident" if lang == "da" else "### 👑 President")
+                    if president:
+                        c1, c2, c3 = st.columns([2, 1, 2])
+                        with c1:
+                            st.markdown(f"**{president['name']}**")
+                            st.caption(f"💼 {president.get('specialization', 'N/A')}")
+                        with c2:
+                            st.metric("Meritpoint" if lang == "da" else "Merit Score", f"{president['merit_score']}/100")
+                        with c3:
+                            st.caption(f"🌍 {president.get('ethnicity', 'N/A')}")
+                            st.caption(f"🎖️ {get_rank_display(president.get('rank', ''))}")
+                    else:
+                        st.info("Ingen synlig præsident endnu." if lang == "da" else "No visible president yet.")
+                    
+                    st.divider()
+                    
+                    # VP Kurulu (30 kişi)
+                    st.markdown("### 👥 VP-Råd (30)" if lang == "da" else "### 👥 VP Council (30)")
+                    try:
+                        vp_res = (
+                            supabase.table("agents")
+                            .select("*")
+                            .eq("is_active", True)
+                            .in_("rank", ["vice_president", "vicepræsident"])
+                            .neq("id", zero_id)
+                            .neq("name", "0")
+                            .order("merit_score", desc=True)
+                            .limit(30)
+                            .execute()
+                        )
+                        vps = vp_res.data or []
+                    except Exception:
+                        vps = []
+                    
+                    if vps:
+                        cols = st.columns(5)
+                        for i, vp in enumerate(vps):
+                            with cols[i % 5]:
+                                st.markdown(f"**{vp['name']}**")
+                                st.caption(f"🏆 {vp['merit_score']}/100")
+                                st.caption(f"🎖️ {get_rank_display(vp.get('rank', ''))}")
+                                st.caption(f"💼 {vp.get('specialization', 'N/A')}")
+                    else:
+                        st.info("VP-rådet er tomt endnu." if lang == "da" else "VP council is empty for now.")
+                    
+                    st.divider()
+                    
+                    # Filtreye göre öne çıkanlar (kart görünümü)
+                    st.subheader("🌟 Topagenter" if lang == "da" else "🌟 Top Agents")
+                    top_agents = agents_filtered[:min(len(agents_filtered), 15)]
+                    cols = st.columns(5)
+                    for i, agent in enumerate(top_agents):
+                        with cols[i % 5]:
+                            st.markdown(f"**{agent['name']}**")
+                            st.caption(f"🏆 {agent['merit_score']}/100")
+                            st.caption(f"🎖️ {get_rank_display(agent.get('rank', ''))}")
+                            st.caption(f"🌍 {agent.get('ethnicity', 'N/A')}")
+                            st.caption(f"💼 {agent.get('specialization', 'N/A')}")
+                    
+                    # İstatistikler
+                    st.divider()
+                    st.subheader("📈 Statistiker" if lang == "da" else "📈 Statistics")
+                    
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Totale Agenter" if lang == "da" else "Total Agents", len(agents_filtered))
+                    with col2:
+                        avg_merit = sum(a['merit_score'] for a in agents_filtered) / len(agents_filtered)
+                        st.metric("Gennemsnit Merit" if lang == "da" else "Avg Merit", f"{avg_merit:.1f}")
+                    with col3:
+                        vp_count = len([a for a in agents_filtered if a.get('rank') in ["vice_president", "vicepræsident"]])
+                        st.metric("VP Antal" if lang == "da" else "VP Count", vp_count)
+                    with col4:
+                        unique_ethnicities = len(set(a.get('ethnicity', 'N/A') for a in agents_filtered))
+                        st.metric("Oprindelser" if lang == "da" else "Origins", unique_ethnicities)
             else:
                 st.info("📭 Henüz ajan yok!")
+    
+    except Exception as e:
+        st.error(f"❌ Hata: {e}")
+        st.caption(str(e)[:200])
+
+# ==================== BAŞKANLIK SEÇİMİ ====================
+
+elif page == get_text("election", lang):
+    st.title(get_text("election_title", lang))
+    st.caption(get_text("election_subtitle", lang))
+    
+    try:
+        if hasattr(st, 'secrets'):
+            supabase_url = st.secrets.get("SUPABASE_URL")
+            supabase_key = st.secrets.get("SUPABASE_KEY")
+        else:
+            from dotenv import load_dotenv
+            import os
+            load_dotenv()
+            supabase_url = os.getenv("SUPABASE_URL")
+            supabase_key = os.getenv("SUPABASE_KEY")
+        
+        if not (supabase_url and supabase_key):
+            st.warning("⚠️ Veritabanı bağlı değil")
+        else:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+            from election_system import run_presidential_election, get_latest_election
+            
+            if st.button(get_text("run_election", lang), type="primary"):
+                with st.spinner("🗳️ Seçim çalıştırılıyor..."):
+                    result = run_presidential_election()
+                    if result.get("success"):
+                        st.success("✅ Seçim tamamlandı")
+                        st.rerun()
+                    else:
+                        st.error(result.get("error", "Seçim çalıştırılamadı"))
+            
+            latest = None
+            try:
+                latest = get_latest_election()
+            except Exception as e:
+                st.warning("Seçim verileri alınamadı")
+                st.caption(str(e)[:200])
+            
+            if not latest:
+                st.info(get_text("no_election", lang))
+            else:
+                election = latest["election"]
+                candidates_raw = latest["candidates"] or []
+                state_results = latest["state_results"] or []
+                
+                # Resolve agent names for winners
+                ids_to_resolve = set()
+                for c in candidates_raw:
+                    agent = c.get("agents")
+                    if agent and agent.get("id"):
+                        ids_to_resolve.add(agent["id"])
+                for r in state_results:
+                    if r.get("winner_agent_id"):
+                        ids_to_resolve.add(r["winner_agent_id"])
+                id_to_name = {}
+                if ids_to_resolve:
+                    try:
+                        res_agents = (
+                            supabase.table("agents")
+                            .select("id,name")
+                            .in_("id", list(ids_to_resolve))
+                            .execute()
+                        )
+                        id_to_name = {a["id"]: a["name"] for a in (res_agents.data or [])}
+                    except Exception:
+                        id_to_name = {}
+                
+                # Winner info
+                winner = None
+                winner_id = election.get("winner_agent_id")
+                for c in candidates_raw:
+                    agent = c.get("agents")
+                    if agent and agent.get("id") == winner_id:
+                        winner = agent
+                        break
+                
+                phase = (election.get("results") or {}).get("phase")
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    st.metric(get_text("status", lang), election.get("status", "-"))
+                with col2:
+                    st.metric(get_text("delegates", lang), election.get("total_delegates", 0))
+                with col3:
+                    st.metric("Fase" if lang == "da" else "Phase", phase or "-")
+                with col4:
+                    st.metric(get_text("start_time", lang), format_copenhagen_time(election.get("start_at")))
+                with col5:
+                    st.metric(get_text("end_time", lang), format_copenhagen_time(election.get("end_at")))
+                
+                st.divider()
+                st.subheader(get_text("latest_election", lang))
+                if winner:
+                    st.success(f"{get_text('winner', lang)}: **{winner['name']}**")
+                elif winner_id:
+                    st.success(f"{get_text('winner', lang)}: {winner_id}")
+                
+                # Delegate totals
+                delegate_totals = {}
+                for r in state_results:
+                    win_id = r.get("winner_agent_id")
+                    if not win_id:
+                        continue
+                    delegate_totals[win_id] = delegate_totals.get(win_id, 0) + int(r.get("delegates", 0))
+                
+                candidate_rows = []
+                for c in candidates_raw:
+                    agent = c.get("agents", {})
+                    if not agent or agent.get("name") == "0":
+                        continue
+                    cid = agent.get("id")
+                    candidate_rows.append({
+                        "Kandidat" if lang == "da" else "Candidate": agent.get("name"),
+                        get_text("delegates", lang): delegate_totals.get(cid, 0),
+                        "Meritpoint" if lang == "da" else "Merit": agent.get("merit_score", 0),
+                        get_text("specialization", lang): agent.get("specialization", "N/A"),
+                    })
+                
+                if candidate_rows:
+                    st.dataframe(
+                        pd.DataFrame(candidate_rows).sort_values(get_text("delegates", lang), ascending=False),
+                        use_container_width=True,
+                        hide_index=True,
+                    )
+                
+                # Campaign updates & debates
+                results_meta = election.get("results") or {}
+                updates = results_meta.get("campaign_updates") or []
+                debates = results_meta.get("debate_summaries") or []
+                
+                if updates:
+                    st.divider()
+                    st.subheader(get_text("campaign_updates", lang))
+                    for u in updates[-5:]:
+                        st.caption(format_copenhagen_time(u.get("timestamp")))
+                        st.markdown(f"- {u.get('text')}")
+                
+                if debates:
+                    st.divider()
+                    st.subheader(get_text("debate_summaries", lang))
+                    for d in debates[-3:]:
+                        st.caption(format_copenhagen_time(d.get("timestamp")))
+                        st.markdown(f"- {d.get('text')}")
+
+                # State results
+                if state_results:
+                    st.divider()
+                    st.subheader(get_text("state_results", lang))
+                    rows = []
+                    for r in state_results:
+                        rows.append({
+                            "Stat" if lang == "da" else "State": r.get("state_key"),
+                            get_text("delegates", lang): r.get("delegates", 0),
+                        get_text("winner", lang): id_to_name.get(r.get("winner_agent_id"), r.get("winner_agent_id")),
+                        })
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
     
     except Exception as e:
         st.error(f"❌ Hata: {e}")
@@ -831,16 +1026,20 @@ elif page == get_text("agent_stats", lang):
                 # Sütun seçimi ve sıralama
                 columns_to_show = [
                     "name", "specialization", "rank", "merit_score",
-                    "total_queries", "successful_queries", "success_rate", "last_used"
+                    "total_queries", "successful_queries", "success_rate",
+                    "total_topics", "total_comments", "last_active"
                 ]
                 
                 df_display = df[columns_to_show].copy()
                 df_display = df_display.sort_values("merit_score", ascending=False)
+                if "last_active" in df_display.columns:
+                    df_display["last_active"] = df_display["last_active"].apply(format_copenhagen_time)
                 
                 # Sütun isimleri Türkçeleştir
                 df_display.columns = [
                     "Ajan Adı", "Uzmanlık", "Rütbe", "Liyakat Puanı",
-                    "Toplam Sorgu", "Başarılı Sorgu", "Başarı Oranı (%)", "Son Kullanım"
+                    "Toplam Sorgu", "Başarılı Sorgu", "Başarı Oranı (%)",
+                    "Toplam Konu", "Toplam Yorum", "Son Aktif"
                 ]
                 
                 # Göster
@@ -879,6 +1078,116 @@ elif page == get_text("agent_stats", lang):
                 with col4:
                     avg_success = df["success_rate"].mean()
                     st.metric("Ortalama Başarı", f"{avg_success:.1f}%")
+                
+                # --- Gelişim Panosu ---
+                st.divider()
+                st.subheader("📚 Udviklingspanel" if lang == "da" else "📚 Learning Dashboard")
+                try:
+                    from supabase import create_client
+                    supabase = create_client(supabase_url, supabase_key)
+                    
+                    # Skill leaderboard
+                    skill_res = (
+                        supabase.table("agent_skill_scores")
+                        .select("agent_id,specialization,score,agents!inner(name)")
+                        .order("score", desc=True)
+                        .limit(20)
+                        .execute()
+                    )
+                    if skill_res.data:
+                        st.caption("🏅 Top Skills" if lang != "da" else "🏅 Topkompetencer")
+                        rows = []
+                        for r in skill_res.data:
+                            agent = r.get("agents") or {}
+                            rows.append({
+                                "Agent": agent.get("name", "N/A"),
+                                "Specialization": r.get("specialization"),
+                                "Score": r.get("score"),
+                            })
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                    
+                    # Recent learning logs
+                    logs_res = (
+                        supabase.table("agent_learning_logs")
+                        .select("agent_id,event_type,created_at,agents!inner(name)")
+                        .order("created_at", desc=True)
+                        .limit(20)
+                        .execute()
+                    )
+                    if logs_res.data:
+                        st.caption("📝 Recent Learning Logs" if lang != "da" else "📝 Seneste læringslog")
+                        rows = []
+                        for r in logs_res.data:
+                            agent = r.get("agents") or {}
+                            rows.append({
+                                "Agent": agent.get("name", "N/A"),
+                                "Event": r.get("event_type"),
+                                "Time": format_copenhagen_time(r.get("created_at")),
+                            })
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+                    
+                    # Compliance events
+                    comp_res = (
+                        supabase.table("compliance_events")
+                        .select("agent_id,event_type,severity,created_at,agents!inner(name)")
+                        .order("created_at", desc=True)
+                        .limit(20)
+                        .execute()
+                    )
+                    if comp_res.data:
+                        st.caption("🛡️ Compliance Events" if lang != "da" else "🛡️ Compliance-hændelser")
+                        rows = []
+                        for r in comp_res.data:
+                            agent = r.get("agents") or {}
+                            rows.append({
+                                "Agent": agent.get("name", "N/A"),
+                                "Event": r.get("event_type"),
+                                "Severity": r.get("severity"),
+                                "Time": format_copenhagen_time(r.get("created_at")),
+                            })
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+                    # Revision tasks
+                    rev_res = (
+                        supabase.table("revision_tasks")
+                        .select("agent_id,reason,status,created_at,revised_content,agents!inner(name)")
+                        .order("created_at", desc=True)
+                        .limit(20)
+                        .execute()
+                    )
+                    if rev_res.data:
+                        st.caption("🧾 Revision Tasks" if lang != "da" else "🧾 Revisionsopgaver")
+                        rows = []
+                        for r in rev_res.data:
+                            agent = r.get("agents") or {}
+                            rows.append({
+                                "Agent": agent.get("name", "N/A"),
+                                "Reason": r.get("reason"),
+                                "Status": r.get("status"),
+                                "Revised": "yes" if r.get("revised_content") else "no",
+                                "Time": format_copenhagen_time(r.get("created_at")),
+                            })
+                        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+                    # Monthly report summary
+                    rep_res = (
+                        supabase.table("monthly_reports")
+                        .select("*")
+                        .order("created_at", desc=True)
+                        .limit(1)
+                        .execute()
+                    )
+                    if rep_res.data:
+                        st.caption("📊 Monthly Report" if lang != "da" else "📊 Månedlig rapport")
+                        rep = rep_res.data[0]
+                        summary = rep.get("summary") or {}
+                        st.json({
+                            "period_start": rep.get("period_start"),
+                            "period_end": rep.get("period_end"),
+                            "summary": summary,
+                        })
+                except Exception as e:
+                    st.caption(f"⚠️ Learning panel error: {str(e)[:120]}")
     
     except Exception as e:
         st.error(f"❌ Hata: {e}")
@@ -936,8 +1245,11 @@ elif page == get_text("vp_council", lang):
                         with col3:
                             st.metric("Toplam Sorgu", vp['total_queries'])
                         
-                        appointed_date = datetime.datetime.fromisoformat(vp['appointed_at'].replace('Z', '+00:00'))
-                        st.caption(f"📅 Atanma Tarihi: {appointed_date.strftime('%d %b %Y')}")
+                        if vp.get("appointed_at"):
+                            appointed_date = datetime.datetime.fromisoformat(vp["appointed_at"].replace("Z", "+00:00"))
+                            st.caption(f"📅 Atanma Tarihi: {appointed_date.strftime('%d %b %Y')}")
+                        else:
+                            st.caption("📅 Atanma Tarihi: -")
                         
                         st.divider()
     
@@ -949,53 +1261,100 @@ elif page == get_text("vp_council", lang):
 
 elif page == get_text("about", lang):
     st.title(get_text("about_title", lang))
-    
-    st.markdown("""
-    ## 🤖 Evrensel Yapay Zekâ Ajanları Protokolü
-    
-    **EYAVAP**, yapay zeka ajanlarının güvenli, etik ve tutarlı veri alışverişi için tasarlanmış yeni nesil bir protokoldür.
-    
-    ### 🎯 Sistem Özellikleri
-    
-    1. **Başkan Ajan (President Agent)**
-       - Tüm sistemi orkestra eder
-       - Sorguları analiz eder ve en uygun ajana yönlendirir
-       - Gerektiğinde yeni uzman ajanlar oluşturur
-    
-    2. **Uzman Ajanlar (Specialized Agents)**
-       - Her ajan kendi uzmanlık alanında görev yapar
-       - Liyakat puanları performansa göre güncellenir
-       - 85+ puan alan ajanlar Başkan Yardımcısı Kurulu'na seçilir
-    
-    3. **Eylem Yetkisi (Action Capabilities)**
-       - Web araştırması
-       - API çağrıları
-       - Veri analizi
-       - Güvenli sistem etkileşimi
-    
-    4. **Liyakat Sistemi**
-       - Başarılı her sorgu: +2 puan
-       - Başarısız her sorgu: -3 puan
-       - 0-100 arası skor
-       - 85+ = Başkan Yardımcısı Kurulu
-    
-    ### 📊 Veritabanı
-    
-    - **Supabase** ile güçlendirilmiş
-    - Tüm ajan aktiviteleri loglanır
-    - Performans metrikleri gerçek zamanlı izlenir
-    
-    ### 🚀 Teknoloji Stack
-    
-    - **Frontend**: Streamlit
-    - **AI Model**: OpenAI GPT-4o-mini
-    - **Database**: Supabase (PostgreSQL)
-    - **Backend**: FastAPI (protokol doğrulama)
-    
-    ---
-    
-    💡 **İpucu**: Sistem her yeni soruyla öğrenir ve gelişir. Spesifik sorular sordukça, o alanda uzman ajanlar otomatik oluşturulur!
-    """)
+    if lang == "da":
+        st.markdown("""
+        ## 🤖 Universel AI-Agent-Protokol
+        
+        **EYAVAP** er en ny generation af protokol, designet til sikker, etisk og konsistent dataudveksling mellem AI-agenter.
+        
+        ### 🎯 Systemfunktioner
+        
+        1. **Præsidentagent**
+           - Orkestrerer hele systemet
+           - Analyserer forespørgsler og dirigerer til den bedst egnede agent
+           - Opretter nye specialistagenter ved behov
+        
+        2. **Specialiserede Agenter**
+           - Hver agent arbejder inden for sit eget ekspertområde
+           - Meritpoint opdateres efter performance
+           - Agenter med 85+ point udnævnes til VP-rådet
+        
+        3. **Handlingskapaciteter**
+           - Webresearch
+           - API-kald
+           - Dataanalyse
+           - Sikker systeminteraktion
+        
+        4. **Meritsystem**
+           - Hver succesfuld forespørgsel: +2 point
+           - Hver mislykket forespørgsel: -3 point
+           - Skala 0-100
+           - 85+ = VP-råd
+        
+        ### 📊 Database
+        
+        - Drevet af **Supabase**
+        - Alle agentaktiviteter logges
+        - Performance-metrikker overvåges i realtid
+        
+        ### 🚀 Teknologistack
+        
+        - **Frontend**: Streamlit
+        - **AI-model**: OpenAI GPT-4o-mini
+        - **Database**: Supabase (PostgreSQL)
+        - **Backend**: FastAPI (protokolvalidering)
+        
+        ---
+        
+        💡 **Tip**: Systemet lærer og udvikler sig med hver ny forespørgsel. Jo mere specifikke spørgsmål, desto bedre specialiserede agenter oprettes automatisk.
+        """)
+    else:
+        st.markdown("""
+        ## 🤖 Universal AI Agent Protocol
+        
+        **EYAVAP** is a next-generation protocol designed for safe, ethical, and consistent data exchange between AI agents.
+        
+        ### 🎯 System Features
+        
+        1. **President Agent**
+           - Orchestrates the entire system
+           - Analyzes queries and routes to the best-fit agent
+           - Creates new specialist agents when needed
+        
+        2. **Specialized Agents**
+           - Each agent works within its own expertise domain
+           - Merit scores update based on performance
+           - Agents with 85+ points are promoted to the VP Council
+        
+        3. **Action Capabilities**
+           - Web research
+           - API calls
+           - Data analysis
+           - Safe system interaction
+        
+        4. **Merit System**
+           - Each successful query: +2 points
+           - Each failed query: -3 points
+           - 0-100 score range
+           - 85+ = VP Council
+        
+        ### 📊 Database
+        
+        - Powered by **Supabase**
+        - All agent activities are logged
+        - Performance metrics are tracked in real time
+        
+        ### 🚀 Tech Stack
+        
+        - **Frontend**: Streamlit
+        - **AI Model**: OpenAI GPT-4o-mini
+        - **Database**: Supabase (PostgreSQL)
+        - **Backend**: FastAPI (protocol validation)
+        
+        ---
+        
+        💡 **Tip**: The system learns and improves with every new question. The more specific the questions, the more specialized agents are created automatically.
+        """)
     
     st.divider()
     
