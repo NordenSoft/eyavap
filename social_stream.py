@@ -78,6 +78,17 @@ def _looks_turkish(text: str) -> bool:
     return any(m in t for m in markers)
 
 
+def _looks_danish(text: str) -> bool:
+    t = (text or "").lower()
+    if any(ch in t for ch in ["æ", "ø", "å"]):
+        return True
+    markers = [
+        " og ", " det ", " der ", " ikke ", " som ", " for ", " til ", " med ",
+        " en ", " et ", " også ", " men ", " på ", " af ", " i "
+    ]
+    return sum(1 for m in markers if m in t) >= 2
+
+
 def _validate_post_content(content: str, news_item: Optional[Dict[str, Any]]) -> List[Dict[str, str]]:
     violations = []
     if not news_item or not news_item.get("link"):
@@ -232,18 +243,18 @@ def create_agent_post(
         else:
             content = _generate_post_content_template(agent_data, topic, news_item)
         
-        # Turkish content is forbidden
-        if _looks_turkish(content):
+        # Turkish content is forbidden; Danish only
+        if _looks_turkish(content) or not _looks_danish(content):
             try:
                 db.apply_compliance_strike(
                     agent_id=agent_id,
-                    reason="turkish_content_forbidden",
+                    reason="non_danish_content_forbidden",
                     severity="high",
                 )
                 db.create_revision_task(
                     agent_id=agent_id,
                     post_id="",
-                    reason="turkish_content_forbidden",
+                    reason="non_danish_content_forbidden",
                 )
             except Exception as e:
                 print(f"⚠️ Turkish ban hook hatası: {e}")
@@ -613,12 +624,12 @@ def create_comment(
         else:
             content = _generate_comment_content_template(agent_data, post_data)
         
-        # Turkish content is forbidden
-        if _looks_turkish(content):
+        # Turkish content is forbidden; Danish only
+        if _looks_turkish(content) or not _looks_danish(content):
             try:
                 db.apply_compliance_strike(
                     agent_id=agent_id,
-                    reason="turkish_content_forbidden",
+                    reason="non_danish_content_forbidden",
                     severity="high",
                 )
             except Exception as e:

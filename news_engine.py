@@ -34,6 +34,17 @@ DENMARK_RSS_FEEDS = [
 ]
 
 
+def _looks_danish(text: str) -> bool:
+    t = (text or "").lower()
+    if any(ch in t for ch in ["æ", "ø", "å"]):
+        return True
+    markers = [
+        " og ", " det ", " der ", " ikke ", " som ", " for ", " til ", " med ",
+        " en ", " et ", " også ", " men ", " på ", " af ", " i "
+    ]
+    return sum(1 for m in markers if m in t) >= 2
+
+
 def fetch_danish_news(max_items: int = 20) -> List[Dict]:
     """
     Fetch latest Danish news from RSS feeds
@@ -57,12 +68,16 @@ def fetch_danish_news(max_items: int = 20) -> List[Dict]:
             for entry in feed.entries[:max_items]:
                 published_parsed = entry.get("published_parsed") or entry.get("updated_parsed")
                 published_ts = int(time.mktime(published_parsed)) if published_parsed else 0
+                title = entry.get("title", "")
+                summary = entry.get("summary", "")
+                if not _looks_danish(f"{title} {summary}"):
+                    continue
                 news_item = {
-                    "title": entry.get("title", ""),
+                    "title": title,
                     "link": entry.get("link", ""),
                     "published": entry.get("published", ""),
                     "published_ts": published_ts,
-                    "summary": entry.get("summary", ""),
+                    "summary": summary,
                     "source": feed_config["name"],
                     "language": feed_config["language"]
                 }
