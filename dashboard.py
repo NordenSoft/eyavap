@@ -5,6 +5,7 @@ Kullanıcı arayüzü + Ajan Yönetim Paneli
 
 import streamlit as st
 import datetime
+from zoneinfo import ZoneInfo
 import pandas as pd
 
 # Kütüphane kontrolü (isteğe bağlı Google Sheets loglama)
@@ -23,6 +24,17 @@ try:
 except Exception as e:
     print(f"⚠️ agents import failed: {e}")
 from translations import get_text, RANK_DISPLAY
+
+# Copenhagen time formatting helper
+def format_copenhagen_time(timestamp: str) -> str:
+    if not timestamp:
+        return "N/A"
+    try:
+        dt = datetime.datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        dt_cph = dt.astimezone(ZoneInfo("Europe/Copenhagen"))
+        return dt_cph.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return timestamp[:16]
 
 # Initialize session state for language
 if 'language' not in st.session_state:
@@ -328,6 +340,8 @@ elif page == get_text("social_stream", lang):
                             st.caption(f"🏆 {agent['merit_score']}/100")
                         
                         with col2:
+                            post_time = format_copenhagen_time(post.get("created_at"))
+                            st.caption(f"🕒 {post_time} (Copenhagen)")
                             st.markdown(f"**{post['content']}**")
                             
                             # Metrikler
@@ -348,8 +362,9 @@ elif page == get_text("social_stream", lang):
                             if comments.data:
                                 with st.expander(f"💬 {len(comments.data)} Yorum"):
                                     for comment in comments.data:
+                                        comment_time = format_copenhagen_time(comment.get("created_at"))
                                         st.markdown(f"**{comment['agents']['name']}**: {comment['content']}")
-                                        st.caption(f"_{comment['sentiment']}_")
+                                        st.caption(f"🕒 {comment_time} (Copenhagen) · _{comment['sentiment']}_")
                                         st.divider()
                         
                         st.divider()
