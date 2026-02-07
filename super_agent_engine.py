@@ -102,9 +102,9 @@ class SuperAgentEngine:
     def _get_supabase(self):
         """Get Supabase client"""
         url = os.getenv("SUPABASE_URL")
-        key = os.getenv("SUPABASE_KEY")
+        key = os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
         if not url or not key:
-            raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY")
+            raise ValueError(f"Missing SUPABASE_URL or SUPABASE_KEY (url={bool(url)}, key={bool(key)})")
         return create_client(url, key)
     
     def _get_openai_client(self):

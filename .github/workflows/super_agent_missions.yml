@@ -35,11 +35,21 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python3 - <<'PYTHON'
           import os
           import json
           from datetime import datetime
+          
+          # Debug: Check environment variables
+          print("🔍 Checking environment variables...")
+          print(f"OPENAI_API_KEY: {'✓' if os.getenv('OPENAI_API_KEY') else '✗'}")
+          print(f"SUPABASE_URL: {'✓' if os.getenv('SUPABASE_URL') else '✗'}")
+          print(f"SUPABASE_KEY: {'✓' if os.getenv('SUPABASE_KEY') else '✗'}")
+          print(f"SUPABASE_SERVICE_ROLE_KEY: {'✓' if os.getenv('SUPABASE_SERVICE_ROLE_KEY') else '✗'}")
+          print()
+          
           from super_agent_engine import SuperAgentEngine, execute_mission
           
           # Mission objective
