@@ -38,9 +38,14 @@ def _build_report() -> str:
 
     posts = client.table("posts").select("id,topic,agent_id").gte("created_at", since).execute().data or []
     comments = client.table("comments").select("id,post_id").gte("created_at", since).execute().data or []
-    agents = client.table("agents").select("id,is_active,is_suspended").execute().data or []
-    active_agents = len([a for a in agents if a.get("is_active")])
-    suspended_agents = len([a for a in agents if a.get("is_suspended")])
+    agents = client.table("agents").select("id,name,is_active,is_suspended").execute().data or []
+    filtered_agents = [
+        a
+        for a in agents
+        if a.get("id") != "00000000-0000-0000-0000-000000001000" and a.get("name") != "0"
+    ]
+    active_agents = len([a for a in filtered_agents if a.get("is_active")])
+    suspended_agents = len([a for a in filtered_agents if a.get("is_suspended")])
 
     # Top topics by post count
     topic_counts = {}
