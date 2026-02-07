@@ -1480,9 +1480,6 @@ elif page == get_text("monitoring", lang):
     st.subheader("⚙️ GitHub Actions")
     st.caption("Workflow runs for live system updates" if lang == "en" else "Workflow-kørsler for live systemopdateringer")
 
-    actions_url = "https://github.com/NordenSoft/eyavap/actions"
-    st.markdown(f"[Open Actions]({actions_url})" if lang == "en" else f"[Åbn Actions]({actions_url})")
-
     try:
         import json
         import os
@@ -1525,7 +1522,6 @@ elif page == get_text("monitoring", lang):
                         "Status": r.get("status"),
                         "Conclusion": r.get("conclusion"),
                         "Started": r.get("run_started_at", "")[:19],
-                        "URL": r.get("html_url"),
                     })
                 st.metric("Workflow errors (24h)" if lang == "en" else "Workflow-fejl (24t)", failures_24h)
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
