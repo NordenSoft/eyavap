@@ -3,10 +3,12 @@ Send daily system report via Gmail SMTP.
 """
 
 import os
+import sys
 import smtplib
 from datetime import datetime, timedelta, timezone
 from email.mime.text import MIMEText
 
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from database import get_database
 
 
