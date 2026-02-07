@@ -1272,8 +1272,18 @@ elif page == get_text("monitoring", lang):
 
             runs = data.get("workflow_runs", [])
             if runs:
+                failures_24h = 0
+                now_utc = datetime.datetime.now(datetime.timezone.utc)
                 rows = []
                 for r in runs:
+                    started_raw = r.get("run_started_at") or ""
+                    try:
+                        started_dt = datetime.datetime.fromisoformat(started_raw.replace("Z", "+00:00"))
+                        if (now_utc - started_dt).total_seconds() <= 86400:
+                            if r.get("conclusion") in ["failure", "cancelled", "timed_out"]:
+                                failures_24h += 1
+                    except Exception:
+                        pass
                     rows.append({
                         "Name": r.get("name"),
                         "Status": r.get("status"),
@@ -1281,6 +1291,7 @@ elif page == get_text("monitoring", lang):
                         "Started": r.get("run_started_at", "")[:19],
                         "URL": r.get("html_url"),
                     })
+                st.metric("Workflow errors (24h)" if lang == "en" else "Workflow-fejl (24t)", failures_24h)
                 st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
             else:
                 st.info("No recent workflow runs found." if lang == "en" else "Ingen nylige workflow-kørsler fundet.")
@@ -1288,6 +1299,105 @@ elif page == get_text("monitoring", lang):
             st.info("Add `GITHUB_TOKEN` to Streamlit secrets to show live workflow data." if lang == "en" else "Tilføj `GITHUB_TOKEN` i Streamlit secrets for live workflow-data.")
     except Exception as e:
         st.caption(f"⚠️ Actions API error: {str(e)[:120]}")
+
+    st.divider()
+
+    # Live system events (last 50)
+    st.subheader("🧾 Live Events" if lang == "en" else "🧾 Live-hændelser")
+    st.caption("Latest system activity stream" if lang == "en" else "Seneste aktivitetsstrøm i systemet")
+
+    try:
+        if supabase_url and supabase_key:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+
+            events = []
+
+            posts_ev = (
+                supabase.table("posts")
+                .select("id,created_at,topic")
+                .order("created_at", desc=True)
+                .limit(20)
+                .execute()
+                .data
+                or []
+            )
+            for p in posts_ev:
+                events.append({
+                    "time": p.get("created_at"),
+                    "type": "post",
+                    "detail": f"topic={p.get('topic')}",
+                })
+
+            comments_ev = (
+                supabase.table("comments")
+                .select("id,created_at,post_id")
+                .order("created_at", desc=True)
+                .limit(20)
+                .execute()
+                .data
+                or []
+            )
+            for c in comments_ev:
+                events.append({
+                    "time": c.get("created_at"),
+                    "type": "comment",
+                    "detail": f"post_id={str(c.get('post_id'))[:8]}",
+                })
+
+            compliance_ev = (
+                supabase.table("compliance_events")
+                .select("id,created_at,severity,event_type")
+                .order("created_at", desc=True)
+                .limit(10)
+                .execute()
+                .data
+                or []
+            )
+            for e in compliance_ev:
+                events.append({
+                    "time": e.get("created_at"),
+                    "type": "compliance",
+                    "detail": f"{e.get('event_type')} ({e.get('severity')})",
+                })
+
+            revision_ev = (
+                supabase.table("revision_tasks")
+                .select("id,created_at,status,reason")
+                .order("created_at", desc=True)
+                .limit(10)
+                .execute()
+                .data
+                or []
+            )
+            for r in revision_ev:
+                events.append({
+                    "time": r.get("created_at"),
+                    "type": "revision",
+                    "detail": f"{r.get('status')} · {r.get('reason')}",
+                })
+
+            events_sorted = sorted(
+                events,
+                key=lambda x: x.get("time") or "",
+                reverse=True,
+            )[:50]
+
+            if events_sorted:
+                rows = []
+                for e in events_sorted:
+                    rows.append({
+                        "Time": format_copenhagen_time(e.get("time")),
+                        "Type": e.get("type"),
+                        "Detail": e.get("detail"),
+                    })
+                st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            else:
+                st.info("No recent events." if lang == "en" else "Ingen nylige hændelser.")
+        else:
+            st.info("Supabase not connected. Event stream unavailable." if lang == "en" else "Supabase ikke tilsluttet. Event-strøm utilgængelig.")
+    except Exception as e:
+        st.caption(f"⚠️ Events error: {str(e)[:120]}")
 
 # ==================== BAŞKAN YARDIMCISI KURULU ====================
 
