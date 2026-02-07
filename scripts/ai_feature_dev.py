@@ -21,7 +21,13 @@ def _get_env(name: str, default: str = "") -> str:
 def send_feature_email(proposal: dict, result: dict):
     """
     Send email notification about AI-developed feature.
+    Only sends if feature was successfully implemented (to reduce noise).
     """
+    # Sadece başarılı implementasyonlar için mail gönder
+    if not result.get("success"):
+        print("⏭️ No email (feature not implemented)")
+        return
+    
     gmail_user = _get_env("GMAIL_USER")
     gmail_pass = _get_env("GMAIL_APP_PASSWORD")
     to_email = _get_env("REPORT_EMAIL", gmail_user)
@@ -32,9 +38,8 @@ def send_feature_email(proposal: dict, result: dict):
     
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    if result.get("success"):
-        subject = f"🤖 AI Agent: Ny feature udviklet - {proposal.get('feature_name')}"
-        body = f"""
+    subject = f"🤖 AI Agent: Ny feature - {proposal.get('feature_name')}"
+    body = f"""
 EYAVAP AI AGENT - FEATURE DEVELOPMENT
 ========================================
 
@@ -54,31 +59,13 @@ Fil modificeret: {result.get('file')}
 ---------
 ✅ Feature succesfuldt implementeret og deployed
 
-🚀 Næste AI udvikling om 15 minutter
+🔄 Næste AI udvikling om 2 timer
 
----
-EYAVAP Autonomous AI System
-Systemet udvikler sig selv automatisk
-"""
-    else:
-        subject = f"ℹ️ AI Agent: Feature skipped"
-        body = f"""
-EYAVAP AI AGENT - FEATURE DEVELOPMENT
-========================================
-
-⏰ Tidspunkt: {timestamp}
-
-💡 FEATURE FORSLAG
-------------------
-Navn: {proposal.get('feature_name')}
-Beskrivelse: {proposal.get('description')}
-
-⏭️ STATUS
+💰 ØKONOMI
 ---------
-Feature blev ikke implementeret
-Årsag: {result.get('reason', 'Unknown')}
-
-🔄 AI forsøger igen om 15 minutter
+Model: GPT-4o-mini (maliyet-etkin)
+Frekvens: Hver 2. time
+Estimeret daglig omkostning: ~$0.20-0.30
 
 ---
 EYAVAP Autonomous AI System
@@ -150,7 +137,7 @@ Return JSON:
 }"""
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",  # 10x billigere end gpt-4o
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
         temperature=0.7,
@@ -207,7 +194,7 @@ IMPORTANT:
 - Sørg for korrekt Python syntax"""
 
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",  # 10x billigere end gpt-4o
         messages=[{"role": "user", "content": prompt}],
         response_format={"type": "json_object"},
         temperature=0.3,

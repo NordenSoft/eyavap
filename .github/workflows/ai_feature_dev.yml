@@ -3,7 +3,7 @@ name: AI Feature Development
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/15 * * * *"  # Her 15 dakika
+    - cron: "0 */2 * * *"  # Her 2 saatte bir (maliyet-etkin)
 
 permissions:
   contents: write
