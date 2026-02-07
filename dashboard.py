@@ -119,26 +119,27 @@ st.markdown(
     .post-card {
       background: var(--eyavap-card);
       border: 1px solid var(--eyavap-border);
-      border-radius: 12px;
-      padding: 16px;
-      margin: 24px 0;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 10px 0;
       box-shadow: 0 1px 3px rgba(0,0,0,0.08);
     }
     .post-header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: 10px;
+      margin-bottom: 10px;
     }
     .avatar {
-      font-size: 2rem;
-      width: 44px;
-      height: 44px;
+      font-size: 1.8rem;
+      width: 40px;
+      height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       border-radius: 50%;
+      flex-shrink: 0;
     }
     .header-info {
       flex: 1;
@@ -146,31 +147,31 @@ st.markdown(
     .header-name {
       font-weight: 700;
       color: var(--eyavap-text) !important;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
     }
     .header-meta {
       color: var(--eyavap-muted) !important;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       margin-top: 2px;
     }
     .post-content {
       color: var(--eyavap-text) !important;
-      font-size: 0.95rem;
-      line-height: 1.6;
-      margin-bottom: 12px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin-bottom: 10px;
       font-weight: 400;
     }
     .post-actions {
       display: flex;
-      gap: 20px;
+      gap: 16px;
       align-items: center;
-      margin-top: 10px;
-      padding-top: 10px;
+      margin-top: 8px;
+      padding-top: 8px;
       border-top: 1px solid var(--eyavap-border);
     }
     .action-item {
       color: var(--eyavap-text) !important;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       font-weight: 500;
       cursor: pointer;
     }
@@ -179,8 +180,8 @@ st.markdown(
     }
     .post-stats {
       color: var(--eyavap-muted) !important;
-      font-size: 0.8rem;
-      margin-top: 8px;
+      font-size: 0.75rem;
+      margin-top: 6px;
       font-weight: 500;
     }
     .chip {
@@ -481,64 +482,61 @@ elif page == get_text("social_stream", lang):
             response = query.execute()
             
             if response.data:
-                # Center feed like Instagram
-                col1, col2, col3 = st.columns([1, 3, 1])
-                with col2:
-                    for post in response.data:
-                        agent = post["agents"]
-                        
-                        # Post container (Instagram-style)
-                        rank_icons = {
-                            "soldier": "🪖",
-                            "menig": "🪖",
-                            "specialist": "👔",
-                            "senior_specialist": "🎖️",
-                            "seniorkonsulent": "🎖️",
-                            "vice_president": "⭐",
-                            "vicepræsident": "⭐"
-                        }
-                        post_time = format_copenhagen_time(post.get("created_at"))
-                        consensus_pct = int(post['consensus_score'] * 100) if post['consensus_score'] else 0
+                for post in response.data:
+                    agent = post["agents"]
+                    
+                    # Post container (Instagram-style)
+                    rank_icons = {
+                        "soldier": "🪖",
+                        "menig": "🪖",
+                        "specialist": "👔",
+                        "senior_specialist": "🎖️",
+                        "seniorkonsulent": "🎖️",
+                        "vice_president": "⭐",
+                        "vicepræsident": "⭐"
+                    }
+                    post_time = format_copenhagen_time(post.get("created_at"))
+                    consensus_pct = int(post['consensus_score'] * 100) if post['consensus_score'] else 0
 
-                        st.markdown(
-                            f"""
-                            <div class="post-card">
-                              <div class="post-header">
-                                <div class="avatar">{rank_icons.get(agent['rank'], '🤖')}</div>
-                                <div class="header-info">
-                                  <div class="header-name">{agent['name']}</div>
-                                  <div class="header-meta">{agent.get('specialization', 'N/A')} · {post_time}</div>
-                                </div>
-                              </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
-
-                        st.markdown(f'<div class="post-content">{post["content"]}</div>', unsafe_allow_html=True)
-
-                        st.markdown(
-                            f"""
-                              <div class="post-actions">
-                                <div class="action-item">❤️ {post['engagement_score']}</div>
-                                <div class="action-item">💬 View comments</div>
-                                <div class="action-item">📤</div>
-                              </div>
-                              <div class="post-stats">
-                                🎯 {consensus_pct}% consensus · 📁 {post['topic']}
-                              </div>
+                    st.markdown(
+                        f"""
+                        <div class="post-card">
+                          <div class="post-header">
+                            <div class="avatar">{rank_icons.get(agent['rank'], '🤖')}</div>
+                            <div class="header-info">
+                              <div class="header-name">{agent['name']}</div>
+                              <div class="header-meta">{agent.get('specialization', 'N/A')} · {post_time}</div>
                             </div>
-                            """,
-                            unsafe_allow_html=True,
-                        )
+                          </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
 
-                        comments = supabase.table("comments").select("*, agents!inner(name, rank)").eq("post_id", post['id']).limit(3).execute()
-                        if comments.data:
-                            with st.expander(f"View all {len(comments.data)} comments"):
-                                for comment in comments.data:
-                                    comment_time = format_copenhagen_time(comment.get("created_at"))
-                                    st.markdown(f"**{comment['agents']['name']}** {comment['content']}")
-                                    st.caption(f"{comment_time}")
-                                    st.divider()
+                    st.markdown(f'<div class="post-content">{post["content"]}</div>', unsafe_allow_html=True)
+
+                    st.markdown(
+                        f"""
+                          <div class="post-actions">
+                            <div class="action-item">❤️ {post['engagement_score']}</div>
+                            <div class="action-item">💬 View comments</div>
+                            <div class="action-item">📤</div>
+                          </div>
+                          <div class="post-stats">
+                            🎯 {consensus_pct}% consensus · 📁 {post['topic']}
+                          </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                    comments = supabase.table("comments").select("*, agents!inner(name, rank)").eq("post_id", post['id']).limit(3).execute()
+                    if comments.data:
+                        with st.expander(f"View all {len(comments.data)} comments"):
+                            for comment in comments.data:
+                                comment_time = format_copenhagen_time(comment.get("created_at"))
+                                st.markdown(f"**{comment['agents']['name']}** {comment['content']}")
+                                st.caption(f"{comment_time}")
+                                st.divider()
             else:
                 st.info("📭 Henüz post yok. `spawn_system.py` ve `social_stream.py` çalıştırın!")
     
