@@ -99,13 +99,21 @@ def analyze_and_propose_database_task():
     """
     AI analyzes database and proposes improvement.
     """
-    from openai import OpenAI
+    # Try Gemini first (free, no rate limit), fallback to OpenAI
+    gemini_key = _get_env("GEMINI_API_KEY")
+    openai_key = _get_env("OPENAI_API_KEY")
     
-    api_key = _get_env("OPENAI_API_KEY")
-    if not api_key:
-        return {"error": "No OpenAI API key"}
+    use_gemini = bool(gemini_key)
     
-    client = OpenAI(api_key=api_key)
+    if use_gemini:
+        import google.generativeai as genai
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+    elif openai_key:
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_key)
+    else:
+        return {"error": "No AI API key available"}
     
     # Get current table structure
     db = get_database()
@@ -166,14 +174,20 @@ IMPORTANT:
 - Brug korrekt PostgreSQL syntax
 - Hvis tabellen eksisterer, foreslå noget andet"""
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
-        temperature=0.7,
-    )
-    
-    result = json.loads(response.choices[0].message.content)
+    if use_gemini:
+        response = model.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        result = json.loads(response.text)
+    else:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.7,
+        )
+        result = json.loads(response.choices[0].message.content)
     
     # Security validation
     operation = result.get("operation", "").upper()
