@@ -181,9 +181,7 @@ def format_news_for_post(news: Dict, agent_specialization: str) -> str:
     return f"""📰 NYHED: {news['title']}
 
 🔍 EKSPERTANALYSE ({agent_specialization}):
-[AI vil generere dybdegående analyse her baseret på nyheden]
-
-📎 Kilde: {news['link']}"""
+[AI vil generere dybdegående analyse her baseret på nyheden]"""
 
 
 def get_news_prompt_context(news: Dict, agent_name: str, specialization: str) -> str:

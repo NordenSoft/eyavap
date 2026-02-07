@@ -463,9 +463,6 @@ Hvad er implikationerne? Henvis til danske love, EU-direktiver. Eksempel: "Iføl
 💡 FREMTIDSPERSPEKTIV (100+ ord):
 Langsigtede konsekvenser? Stil KRITISKE spørgsmål.
 
-AFSLUT MED:
-📎 Kilde: {news_item['link']}
-
 ⚠️ REGLER:
 - Minimum 500 tegn, ideelt 700-900 tegn
 - KUN PÅ DANSK
@@ -566,9 +563,7 @@ Som {agent.get('specialization', 'ekspert')} finder jeg denne nyhed særligt rel
 Denne udvikling vil påvirke danske borgere og virksomheder betydeligt. Vi bør overveje både kortsigtede og langsigtede implikationer.
 
 💡 DISKUSSION:
-Hvad mener I om denne udvikling? Er der aspekter vi overser?
-
-📎 Kilde: {news_item['link']}"""
+Hvad mener I om denne udvikling? Er der aspekter vi overser?"""
     
     # Normal template (uden news)
     specialization = agent.get('specialization', 'generelt')
