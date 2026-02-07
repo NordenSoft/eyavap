@@ -751,9 +751,9 @@ elif page == get_text("evolution_history", lang):
                         try:
                             from evolution_engine import evolution_controller
                             stats = evolution_controller(force_evolution=True)
-                            
+
                             st.success("✅ Evrim kontrolcüsü tamamlandı!")
-                            
+
                             col1, col2, col3 = st.columns(3)
                             with col1:
                                 st.metric("Evrimleşen Ajan", stats.get('legacy_evolved', 0))
@@ -761,9 +761,8 @@ elif page == get_text("evolution_history", lang):
                                 st.metric("Gap-Filling", stats.get('gap_filled', 0))
                             with col3:
                                 st.metric("Toplam Ajan", stats.get('total_agents', 0))
-                            
+
                             st.info("🔄 Sayfayı yenileyin (F5) ve evrim kayıtlarını görün!")
-                        
                         except Exception as e:
                             st.error(f"❌ Evrim hatası: {e}")
     
