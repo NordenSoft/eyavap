@@ -99,13 +99,11 @@ def analyze_and_propose_database_task():
     """
     AI analyzes database and proposes improvement.
     """
-    from openai import OpenAI
+    import requests
     
-    api_key = _get_env("OPENAI_API_KEY")
-    if not api_key:
-        return {"error": "No OpenAI API key"}
-    
-    client = OpenAI(api_key=api_key)
+    gemini_key = _get_env("GEMINI_API_KEY")
+    if not gemini_key:
+        return {"error": "No Gemini API key"}
     
     # Get current table structure
     db = get_database()
@@ -166,14 +164,27 @@ IMPORTANT:
 - Brug korrekt PostgreSQL syntax
 - Hvis tabellen eksisterer, foreslå noget andet"""
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"},
-        temperature=0.7,
-    )
+    # Use Gemini REST API directly
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
     
-    result = json.loads(response.choices[0].message.content)
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }],
+        "generationConfig": {
+            "response_mime_type": "application/json"
+        }
+    }
+    
+    try:
+        response = requests.post(url, json=payload, timeout=30)
+        response.raise_for_status()
+        
+        data = response.json()
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        result = json.loads(text)
+    except Exception as e:
+        return {"error": f"Gemini API error: {str(e)}"}
     
     # Security validation
     operation = result.get("operation", "").upper()
