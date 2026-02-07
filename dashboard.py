@@ -54,9 +54,23 @@ st.markdown(
     """
     <style>
     :root {
-      --eyavap-accent: #ff3b81;
-      --eyavap-accent-2: #7c4dff;
-      --eyavap-accent-3: #00e5ff;
+      --eyavap-bg: #f5f5f7;
+      --eyavap-card: #ffffff;
+      --eyavap-text: #1f2937;
+      --eyavap-muted: #6b7280;
+      --eyavap-border: #e5e7eb;
+      --eyavap-accent: #6c5ce7;
+      --eyavap-accent-2: #00b894;
+    }
+
+    body, [data-testid="stAppViewContainer"] {
+      background: var(--eyavap-bg);
+      color: var(--eyavap-text);
+    }
+
+    [data-testid="stSidebar"] {
+      background: #ffffff;
+      border-right: 1px solid var(--eyavap-border);
     }
 
     /* Buttons and interactive accents */
@@ -68,31 +82,56 @@ st.markdown(
       font-weight: 600;
     }
     .stButton > button:hover {
-      filter: brightness(1.1);
+      filter: brightness(1.05);
     }
 
     /* Titles and section headers */
-    h1, h2, h3 {
-      color: #ffffff;
-    }
-    h1 span, h2 span, h3 span {
-      color: var(--eyavap-accent);
+    h1, h2, h3, h4, h5 {
+      color: var(--eyavap-text);
     }
 
     /* Metrics */
     [data-testid="stMetricValue"] {
-      color: var(--eyavap-accent-3);
+      color: var(--eyavap-accent);
     }
     [data-testid="stMetricLabel"] {
-      color: #c7d2ff;
+      color: var(--eyavap-muted);
     }
 
-    /* Tabs / radio options */
-    [data-testid="stSidebar"] [role="radiogroup"] label {
-      border-radius: 10px;
+    /* Feed cards */
+    .post-card {
+      background: var(--eyavap-card);
+      border: 1px solid var(--eyavap-border);
+      border-radius: 16px;
+      padding: 16px 18px;
+      margin: 12px 0;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.05);
     }
-    [data-testid="stSidebar"] [role="radiogroup"] label:hover {
-      background: rgba(124, 77, 255, 0.15);
+    .post-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 600;
+      color: var(--eyavap-text);
+    }
+    .post-sub {
+      color: var(--eyavap-muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+    .post-footer {
+      margin-top: 12px;
+      color: var(--eyavap-muted);
+      font-size: 0.9rem;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      background: #f3f4f6;
+      border: 1px solid var(--eyavap-border);
+      border-radius: 999px;
+      padding: 4px 10px;
     }
     </style>
     """,
@@ -387,47 +426,55 @@ elif page == get_text("social_stream", lang):
                 for post in response.data:
                     agent = post["agents"]
                     
-                    # Post container (Instagram-like, text-only)
+                    # Post container (soft, aesthetic feed)
                     with st.container():
-                        left, right = st.columns([4, 1])
+                        rank_icons = {
+                            "soldier": "🪖",
+                            "menig": "🪖",
+                            "specialist": "👔",
+                            "senior_specialist": "🎖️",
+                            "seniorkonsulent": "🎖️",
+                            "vice_president": "⭐",
+                            "vicepræsident": "⭐"
+                        }
+                        post_time = format_copenhagen_time(post.get("created_at"))
+                        consensus_pct = int(post['consensus_score'] * 100) if post['consensus_score'] else 0
 
-                        with left:
-                            rank_icons = {
-                                "soldier": "🪖",
-                                "menig": "🪖",
-                                "specialist": "👔",
-                                "senior_specialist": "🎖️",
-                                "seniorkonsulent": "🎖️",
-                                "vice_president": "⭐",
-                                "vicepræsident": "⭐"
-                            }
-                            post_time = format_copenhagen_time(post.get("created_at"))
-                            st.markdown(f"**{rank_icons.get(agent['rank'], '🤖')} {agent['name']}** · {post_time}")
-                            st.caption(f"💼 {agent.get('specialization', 'N/A')} · 🏆 {agent['merit_score']}/100")
-                            st.markdown(post['content'])
+                        st.markdown(
+                            f"""
+                            <div class="post-card">
+                              <div class="post-header">
+                                <div>{rank_icons.get(agent['rank'], '🤖')} {agent['name']}</div>
+                                <div class="post-sub">{post_time}</div>
+                              </div>
+                              <div class="post-sub">💼 {agent.get('specialization', 'N/A')} · 🏆 {agent['merit_score']}/100 · 🌍 {agent.get('ethnicity', 'N/A')}</div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
-                            # Compact meta row
-                            consensus_pct = int(post['consensus_score'] * 100) if post['consensus_score'] else 0
-                            st.caption(f"👍 {post['engagement_score']} · 🎯 {consensus_pct}% · 📁 {post['topic']} · 😊 {post['sentiment']}")
+                        st.markdown(post['content'])
 
-                            # Yorumları çek
-                            comments = supabase.table("comments").select("*, agents!inner(name, rank)").eq("post_id", post['id']).limit(3).execute()
-                            if comments.data:
-                                with st.expander(f"💬 {len(comments.data)} Yorum"):
-                                    for comment in comments.data:
-                                        comment_time = format_copenhagen_time(comment.get("created_at"))
-                                        st.markdown(f"**{comment['agents']['name']}**: {comment['content']}")
-                                        st.caption(f"🕒 {comment_time} (Copenhagen) · _{comment['sentiment']}_")
-                                        st.divider()
+                        st.markdown(
+                            f"""
+                              <div class="post-footer">
+                                <span class="chip">👍 {post['engagement_score']}</span>
+                                <span class="chip">🎯 {consensus_pct}%</span>
+                                <span class="chip">📁 {post['topic']}</span>
+                                <span class="chip">😊 {post['sentiment']}</span>
+                              </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True,
+                        )
 
-                        with right:
-                            st.caption("Agent")
-                            st.markdown(f"**{agent['name']}**")
-                            st.caption(f"🎖️ {get_rank_display(agent.get('rank', ''))}")
-                            st.caption(f"🏆 {agent['merit_score']}/100")
-                            st.caption(f"🌍 {agent.get('ethnicity', 'N/A')}")
-
-                        st.divider()
+                        comments = supabase.table("comments").select("*, agents!inner(name, rank)").eq("post_id", post['id']).limit(3).execute()
+                        if comments.data:
+                            with st.expander(f"💬 {len(comments.data)} Yorum"):
+                                for comment in comments.data:
+                                    comment_time = format_copenhagen_time(comment.get("created_at"))
+                                    st.markdown(f"**{comment['agents']['name']}**: {comment['content']}")
+                                    st.caption(f"🕒 {comment_time} (Copenhagen) · _{comment['sentiment']}_")
+                                    st.divider()
             else:
                 st.info("📭 Henüz post yok. `spawn_system.py` ve `social_stream.py` çalıştırın!")
     
