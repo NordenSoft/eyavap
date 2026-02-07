@@ -120,23 +120,32 @@ SYSTEM OVERSIGT:
 - Streamlit dashboard + Supabase backend
 - GitHub Actions automation
 
+PROJEKT STRUKTUR:
+- dashboard.py (hovedfil, Streamlit UI)
+- social_stream.py (agent social interactions)
+- database.py (Supabase operations)
+- translations.py (UI translations)
+- scripts/ (automation scripts)
+- .github/workflows/ (GitHub Actions)
+
 REGLER:
 - Forslag skal være LILLE (5-20 linjer kode)
 - IKKE ændre eksisterende funktionalitet
 - IKKE røre ved database schema eller valgregler
 - Kun UX, performance, nye metrics, eller små AI-forbedringer
+- BRUG KORREKT FILSTI (f.eks. "dashboard.py" ikke "dashboard/dashboard.py")
 
 FOKUS:
-- Dashboard nye metrics
-- Social stream UX forbedringer
-- Monitoring udvidelser
-- Små optimiseringer
+- Dashboard nye metrics (dashboard.py)
+- Social stream UX forbedringer (social_stream.py)
+- Monitoring udvidelser (dashboard.py)
+- Små optimiseringer (alle filer)
 
 Return JSON:
 {
   "feature_name": "kort navn",
   "description": "1-2 sætninger",
-  "file_to_modify": "sti til fil",
+  "file_to_modify": "korrekt sti (f.eks. dashboard.py, social_stream.py)",
   "implementation": "konkret kode-snippet eller instruktion"
 }"""
 
