@@ -1,0 +1,93 @@
+name: 🚀 Super Agent Missions
+
+on:
+  workflow_dispatch:
+    inputs:
+      mission_objective:
+        description: 'Mission objective (Danish)'
+        required: true
+        default: 'Analyser de vigtigste emner i dansk politik denne uge'
+  schedule:
+    - cron: "0 6 * * *"  # Daily at 06:00 Copenhagen time
+
+jobs:
+  execute-mission:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install openai supabase python-dotenv
+      
+      - name: Execute Super Agent Mission
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          import json
+          from datetime import datetime
+          from super_agent_engine import SuperAgentEngine, execute_mission
+          
+          # Mission objective
+          objective = os.getenv("MISSION_OBJECTIVE") or "${{ github.event.inputs.mission_objective }}" or "Analyser de vigtigste emner i dansk politik denne uge"
+          
+          print(f"🚀 Starting Super Agent Mission")
+          print(f"📋 Objective: {objective}")
+          print(f"⏰ Time: {datetime.now().isoformat()}")
+          print("-" * 60)
+          
+          try:
+              # Execute mission
+              result = execute_mission(
+                  objective=objective,
+                  context={
+                      "timeframe": "7 days",
+                      "language": "Danish",
+                      "source": "github_actions"
+                  }
+              )
+              
+              print("\n✅ Mission completed successfully!")
+              print(json.dumps(result, indent=2, ensure_ascii=False))
+              
+              # Summary
+              if result.get("tasks"):
+                  completed = sum(1 for t in result["tasks"] if t.get("status") == "completed")
+                  total = len(result["tasks"])
+                  print(f"\n📊 Summary: {completed}/{total} tasks completed")
+              
+          except Exception as e:
+              print(f"\n❌ Mission failed: {str(e)}")
+              import traceback
+              traceback.print_exc()
+              exit(1)
+          
+          PYTHON
+      
+      - name: Commit mission logs (if any changes)
+        run: |
+          git config user.name "eyavap-super-agent"
+          git config user.email "eyavap-super-agent@users.noreply.github.com"
+          
+          # Check if there are any new files to commit
+          if [ -n "$(git status --porcelain)" ]; then
+            git add .
+            git commit -m "🚀 Super Agent Mission: $(date '+%Y-%m-%d %H:%M')"
+            git push origin HEAD:main
+          else
+            echo "No changes to commit"
+          fi

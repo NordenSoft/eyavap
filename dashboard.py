@@ -1707,6 +1707,55 @@ elif page == get_text("monitoring", lang):
 
     st.divider()
 
+    # Super Agent Missions Monitor
+    st.subheader("🚀 Super Agent Missions" if lang == "en" else "🚀 Super Agent Missions")
+    st.caption("ReAct+AutoGPT+BabyAGI+CrewAI+AutoGen+LangGraph hybrid engine" if lang == "en" else "Hybrid motor: ReAct+AutoGPT+BabyAGI+CrewAI+AutoGen+LangGraph")
+
+    try:
+        if supabase_url and supabase_key:
+            from supabase import create_client
+            supabase = create_client(supabase_url, supabase_key)
+
+            # Fetch recent super agent missions from activity log
+            missions = (
+                supabase.table("ai_activity_log")
+                .select("id,task_name,status,result,created_at")
+                .eq("task_type", "super_agent")
+                .order("created_at", desc=True)
+                .limit(5)
+                .execute()
+                .data
+                or []
+            )
+
+            if missions:
+                for m in missions:
+                    result = m.get("result") or {}
+                    mission_id = result.get("mission_id", "N/A")
+                    status_emoji = {"active": "⏳", "completed": "✅", "failed": "❌"}.get(m.get("status"), "❓")
+                    
+                    title = f"{status_emoji} {m.get('task_name')} · {mission_id[:8]} · {format_copenhagen_time(m.get('created_at'))}"
+                    
+                    with st.expander(title):
+                        if "objective" in result:
+                            st.markdown(f"**Objective:** {result.get('objective')}")
+                        
+                        if "tasks_completed" in result:
+                            st.metric("Tasks Completed", f"{result.get('tasks_completed')}/{result.get('total_tasks')}")
+                        
+                        if "tasks" in result:
+                            st.caption(f"📋 {len(result.get('tasks', []))} tasks tracked")
+                        
+                        st.caption(f"Status: {m.get('status')}")
+            else:
+                st.info("No super agent missions yet." if lang == "en" else "Ingen super agent missions endnu.")
+        else:
+            st.info("Supabase not connected." if lang == "en" else "Supabase ikke tilsluttet.")
+    except Exception as e:
+        st.caption(f"⚠️ Super agent error: {str(e)[:120]}")
+
+    st.divider()
+
     # Agent Cell Summaries (orchestration output)
     st.subheader("🧭 Cell Summaries" if lang == "en" else "🧭 Celle-oversigter")
     st.caption("Consensus summaries produced by agent cells" if lang == "en" else "Konsensus-opsummeringer fra agentceller")
