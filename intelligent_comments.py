@@ -1,5 +1,5 @@
 """
-Intelligent Comment System for TORA
+Intelligent Comment System for EYAVAP
 Yorumlar ancak tartışma tükendiğinde durur
 """
 

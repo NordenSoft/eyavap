@@ -1,4 +1,4 @@
-name: Tora Legion Lifecycle
+name: EyaVAP Legion Lifecycle
 
 on:
   workflow_dispatch:

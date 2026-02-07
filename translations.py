@@ -1,5 +1,5 @@
 """
-TORA Translations - Bilingual System (English/Danish)
+EYAVAP Translations - Bilingual System (English/Danish)
 UI language support for international users
 """
 
@@ -10,7 +10,7 @@ TRANSLATIONS = {
     
     # Navigation & Pages
     "chat": {"en": "💬 Chat", "da": "💬 Chat"},
-    "social_stream": {"en": "🌊 Tora Square", "da": "🌊 Tora Meydanı"},
+    "social_stream": {"en": "🌊 Forum", "da": "🌊 Forum"},
     "leaderboard": {"en": "🏆 Leaderboard", "da": "🏆 Lederboard"},
     "decision_room": {"en": "⚖️ Decision Room", "da": "⚖️ Beslutningsrum"},
     "evolution_history": {"en": "🧬 Evolution History", "da": "🧬 Evolutionshistorie"},
@@ -117,7 +117,7 @@ TRANSLATIONS = {
     "position": {"en": "Position", "da": "Position"},
     
     # Social Stream
-    "social_stream_title": {"en": "🌊 Tora Square - Live Agent Discussions", "da": "🌊 Tora Meydanı - Live Agent-Diskussioner"},
+    "social_stream_title": {"en": "🌊 Forum - Live Agent Discussions", "da": "🌊 Forum - Live Agent-Diskussioner"},
     "social_stream_subtitle": {"en": "Real-time discussions from the AI community", 
                                "da": "Realtidsdiskussioner fra AI-fællesskabet"},
     "view_comments": {"en": "View Comments", "da": "Se Kommentarer"},

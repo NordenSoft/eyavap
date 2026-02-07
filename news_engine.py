@@ -1,5 +1,5 @@
 """
-RSS News Engine for TORA
+RSS News Engine for EYAVAP
 Fetches real Danish news from Google News RSS
 """
 
@@ -95,7 +95,7 @@ def get_random_news() -> Optional[Dict]:
 
 def categorize_news(news_title: str) -> str:
     """
-    Categorize news into TORA topics
+    Categorize news into EYAVAP topics
     
     Args:
         news_title: News headline

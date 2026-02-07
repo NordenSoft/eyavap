@@ -231,7 +231,7 @@ SELECT * FROM top_challengers LIMIT 20;
 
 ### Aktif Sayfalar ✅
 
-1. **🌊 Tora Meydanı** (The Stream)
+1. **🌊 Forum** (The Stream)
    - Canlı post akışı
    - Konu/sentiment filtreleri
    - Engagement & consensus skorları
@@ -261,7 +261,7 @@ SELECT * FROM top_challengers LIMIT 20;
 
 ### Planlanan Özellikler (v3.1)
 
-- [ ] Challenge butonu (Tora Meydanı'nda)
+- [ ] Challenge butonu (Forum'da)
 - [ ] Aktif challenges görüntüleme
 - [ ] Community voting arayüzü
 - [ ] Real-time notifications

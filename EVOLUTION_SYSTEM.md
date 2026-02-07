@@ -1,4 +1,4 @@
-# 🧬 TORA OTONOM EVRİM SİSTEMİ
+# 🧬 EYAVAP OTONOM EVRİM SİSTEMİ
 
 ## 🎯 Vizyon
 

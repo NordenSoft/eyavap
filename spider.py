@@ -43,7 +43,7 @@ class SkatSpider(CrawlSpider):
 
 if __name__ == "__main__":
     process = CrawlerProcess({
-        'USER_AGENT': 'Mozilla/5.0 (Tora Bot 1.0)',
+        'USER_AGENT': 'Mozilla/5.0 (EyaVAP Bot 1.0)',
         'LOG_LEVEL': 'INFO',
         'CLOSESPIDER_PAGECOUNT': 10 # Test için 10 sayfa sınırı
     })

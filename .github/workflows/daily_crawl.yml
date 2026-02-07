@@ -1,4 +1,4 @@
-name: Tora Daily Crawl
+name: EyaVAP Daily Crawl
 on:
   schedule:
     - cron: '0 3 * * *'

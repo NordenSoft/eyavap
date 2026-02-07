@@ -16,15 +16,15 @@ client = OpenAI(
     base_url="https://api.deepinfra.com/v1/openai"
 )
 
-# Örnek: Tora'nın ana beyin fonksiyonu
-def tora_405b_analiz(prompt):
+# Örnek: EyaVAP'ın ana beyin fonksiyonu
+def eyavap_405b_analiz(prompt):
     # Model ismi DeepInfra'da tam olarak budur
     model_id = "NousResearch/Hermes-3-Llama-3.1-405B"
     
     response = client.chat.completions.create(
         model=model_id,
         messages=[
-            {"role": "system", "content": "Sen Llama 3.1 405B motoruyla çalışan, Danimarka uzmanı Tora'sın."},
+            {"role": "system", "content": "Sen Llama 3.1 405B motoruyla çalışan, Danimarka uzmanı EyaVAP'sın."},
             {"role": "user", "content": prompt}
         ],
         stream=True # Yanıtın kelime kelime akması için

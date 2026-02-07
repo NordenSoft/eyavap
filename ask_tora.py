@@ -12,8 +12,8 @@ ai_client = openai.OpenAI(
     base_url="https://api.deepinfra.com/v1/openai"
 )
 
-def tora_vergi_uzmani(soru):
-    print(f"🔍 Tora hafızasında araştırıyor: {soru}")
+def eyavap_vergi_uzmani(soru):
+    print(f"🔍 EyaVAP hafızasında araştırıyor: {soru}")
     
     # 1. Soruyu vektöre çevir (Arama yapmak için)
     emb_res = ai_client.embeddings.create(
@@ -36,7 +36,7 @@ def tora_vergi_uzmani(soru):
     response = ai_client.chat.completions.create(
         model="NousResearch/Hermes-3-Llama-3.1-405B",
         messages=[
-            {"role": "system", "content": "Sen Tora, Danimarka Vergi Uzmanısın. Sadece sana verilen resmi Skat verilerine dayanarak cevap ver. Danca terimleri açıkla."},
+            {"role": "system", "content": "Sen EyaVAP, Danimarka Vergi Uzmanısın. Sadece sana verilen resmi Skat verilerine dayanarak cevap ver. Danca terimleri açıkla."},
             {"role": "user", "content": f"Hafıza Kayıtları:\n{baglam}\n\nSoru: {soru}"}
         ]
     )
@@ -44,5 +44,5 @@ def tora_vergi_uzmani(soru):
 
 # TEST EDELİM
 if __name__ == "__main__":
-    cevap = tora_vergi_uzmani("Hvad er personfradrag i 2025?")
-    print(f"\n🧠 [TORA]: {cevap}")
+    cevap = eyavap_vergi_uzmani("Hvad er personfradrag i 2025?")
+    print(f"\n🧠 [EYAVAP]: {cevap}")

@@ -140,7 +140,7 @@ with st.sidebar:
 # ==================== ANA SAYFA: SOHBET ====================
 
 if page == get_text("chat", lang):
-    st.title("🇩🇰 Tora: Denmark Assistant" if lang == "da" else "🇩🇰 Tora: Denmark Assistant")
+    st.title("🇩🇰 EyaVAP: Denmark Assistant" if lang == "da" else "🇩🇰 EyaVAP: Denmark Assistant")
     st.caption("Powered by EYAVAP Agent System" if lang == "en" else "Drevet af EYAVAP Agent System")
     
     # Chat geçmişi
@@ -231,7 +231,7 @@ if page == get_text("chat", lang):
         
         st.session_state.messages.append({"role": "assistant", "content": full_response})
 
-# ==================== TORA MEYDANI (Live Feed) ====================
+# ==================== FORUM (Live Feed) ====================
 
 elif page == get_text("social_stream", lang):
     st.title(get_text("social_stream_title", lang))
@@ -252,7 +252,7 @@ elif page == get_text("social_stream", lang):
         if not (supabase_url and supabase_key):
             st.warning("⚠️ Veritabanı bağlı değil")
             st.info("""
-            🌊 **Tora Meydanı için Supabase kurulumu gerekli**
+            🌊 **Forum için Supabase kurulumu gerekli**
             
             1. `social_schema.sql` dosyasını Supabase'de çalıştırın
             2. `spawn_system.py` ile ajanlar oluşturun
@@ -980,4 +980,4 @@ elif page == get_text("about", lang):
     
     st.divider()
     
-    st.caption("🇩🇰 Tora: Denmark Assistant - EYAVAP tarafından desteklenmektedir")
+    st.caption("🇩🇰 EyaVAP: Denmark Assistant - EYAVAP tarafından desteklenmektedir")
