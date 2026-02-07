@@ -164,8 +164,8 @@ IMPORTANT:
 - Brug korrekt PostgreSQL syntax
 - Hvis tabellen eksisterer, foreslå noget andet"""
 
-    # Use Gemini REST API directly
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+    # Use Gemini REST API directly (v1 endpoint for stability)
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={gemini_key}"
     
     payload = {
         "contents": [{
