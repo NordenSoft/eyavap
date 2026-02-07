@@ -107,17 +107,15 @@ def analyze_and_propose_database_task():
     
     client = OpenAI(api_key=api_key)
     
-    # Get current table structure
-    db = get_database()
+    # Load system context for full knowledge
+    import json
     try:
-        tables_query = """
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_schema = 'public'
-        ORDER BY table_name;
-        """
-        tables_result = db.client.rpc('exec_sql', {'query': tables_query}).execute()
-        existing_tables = [r['table_name'] for r in (tables_result.data or [])]
+        with open("system_context.json", "r", encoding="utf-8") as f:
+            context = json.load(f)
+            existing_tables = list(context.get('database', {}).get('tables', {}).keys())
+            # Add core tables
+            existing_tables.extend(["agents", "posts", "comments", "votes"])
+            existing_tables = list(set(existing_tables))
     except:
         existing_tables = ["agents", "posts", "comments", "elections"]
     

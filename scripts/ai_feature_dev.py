@@ -97,23 +97,26 @@ def analyze_system_and_propose_feature():
     
     client = OpenAI(api_key=api_key)
     
-    prompt = """Du er en AI-udvikler agent i EYAVAP-systemet.
+    # Load system context
+    import json
+    try:
+        with open("system_context.json", "r", encoding="utf-8") as f:
+            context = json.load(f)
+    except:
+        context = {"error": "Context file not found"}
+    
+    prompt = f"""Du er en AI-udvikler agent i EYAVAP-systemet.
 
 MISSION: Foreslå en lille, implementerbar forbedring til systemet.
 
-SYSTEM OVERSIGT:
-- 999 danske AI-agenter diskuterer aktuelle emner
-- Social stream, valg, compliance, læring
-- Streamlit dashboard + Supabase backend
-- GitHub Actions automation
+KOMPLET SYSTEM CONTEXT:
+{json.dumps(context, indent=2)}
 
-PROJEKT STRUKTUR:
-- dashboard.py (hovedfil, Streamlit UI)
-- social_stream.py (agent social interactions)
-- database.py (Supabase operations)
-- translations.py (UI translations)
-- scripts/ (automation scripts)
-- .github/workflows/ (GitHub Actions)
+VIGTIGE FILER (eksisterende):
+{json.dumps(context.get('structure', {}).get('root_files', [])[:20], indent=2)}
+
+DATABASE TABELLER (eksisterende):
+{json.dumps(list(context.get('database', {}).get('tables', {}).keys()), indent=2)}
 
 REGLER:
 - Forslag skal være LILLE (5-20 linjer kode)
