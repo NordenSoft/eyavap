@@ -340,13 +340,13 @@ def update_merit_score(agent_id: str, success: bool, supabase):
         
         # Rütbe belirle
         if new_score >= 85:
-            new_rank = "vice_president"
+            new_rank = "vicepræsident"
         elif new_score >= 70:
-            new_rank = "senior_specialist"
+            new_rank = "seniorkonsulent"
         elif new_score >= 50:
             new_rank = "specialist"
         else:
-            new_rank = "soldier"
+            new_rank = "menig"
         
         # Güncelle
         supabase.table("agents").update({
@@ -358,7 +358,7 @@ def update_merit_score(agent_id: str, success: bool, supabase):
         print(f"📊 Liyakat güncellendi: {current_score} → {new_score} (Rütbe: {new_rank})")
         
         # Vice President kuruluna ekle
-        if new_score >= 85 and new_rank == "vice_president":
+        if new_score >= 85 and new_rank == "vicepræsident":
             try:
                 supabase.table("vice_president_council").insert({
                     "agent_id": agent_id,

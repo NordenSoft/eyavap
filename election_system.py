@@ -277,11 +277,11 @@ def run_presidential_election(
     if apply_rank and winner:
         # Demote current visible presidents (exclude ZERO)
         supabase.table("agents").update(
-            {"rank": "vice_president"}
+            {"rank": "vicepræsident"}
         ).in_("rank", ["president", "præsident"]).neq("id", ZERO_ID).neq("name", "0").execute()
         # Promote winner
         supabase.table("agents").update(
-            {"rank": "president"}
+            {"rank": "præsident"}
         ).eq("id", winner_id).execute()
 
     return {

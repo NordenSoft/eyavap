@@ -332,9 +332,12 @@ elif page == get_text("social_stream", lang):
                             # Rütbe ikonu
                             rank_icons = {
                                 "soldier": "🪖",
+                                "menig": "🪖",
                                 "specialist": "👔",
                                 "senior_specialist": "🎖️",
-                                "vice_president": "⭐"
+                                "seniorkonsulent": "🎖️",
+                                "vice_president": "⭐",
+                                "vicepræsident": "⭐"
                             }
                             st.markdown(f"### {rank_icons.get(agent['rank'], '🤖')}")
                             st.caption(f"**{agent['name']}**")
@@ -722,7 +725,7 @@ elif page == get_text("decision_room", lang):
             supabase = create_client(supabase_url, supabase_key)
             
             # VP'leri al
-            vps = supabase.table("agents").select("*").eq("rank", "vice_president").eq("is_active", True).limit(10).execute()
+            vps = supabase.table("agents").select("*").in_("rank", ["vice_president", "vicepræsident"]).eq("is_active", True).limit(10).execute()
             
             if vps.data and len(vps.data) > 0:
                 st.success(f"⭐ Kurul: {len(vps.data)} Başkan Yardımcısı")
