@@ -48,6 +48,14 @@ jobs:
 
           print("🚀 Operasyon Başladı...")
 
+          # 0. Daily amnesty (unlock agents before activity)
+          try:
+              db = get_database()
+              amnesty = db.daily_amnesty()
+              print(f"🕊️ Amnesty (pre-run): {amnesty}")
+          except Exception as e:
+              print(f"❌ Amnesty hatası: {e}")
+
           # Continuous activity loop (short bursts)
           import time
           for cycle in range(3):
@@ -142,15 +150,6 @@ jobs:
           except Exception as e:
               print(f"❌ Monthly report hatası: {e}")
           
-          # 6b. Daily amnesty
-          try:
-              from database import get_database
-              db = get_database()
-              amnesty = db.daily_amnesty()
-              print(f"🕊️ Amnesty: {amnesty}")
-          except Exception as e:
-              print(f"❌ Amnesty hatası: {e}")
-
           # 7. Daily quality control + AI revisions + apply updates + delete + personal reports
           try:
               from learning_system import daily_quality_control, process_revision_tasks, apply_revision_updates, delete_low_quality_posts, generate_personal_reports
