@@ -983,7 +983,9 @@ def simulate_social_activity(
     use_news: bool = True,
     run_evolution: bool = False,
     ensure_daily_topics: bool = True,
-    daily_min_topics: int = 20
+    daily_min_topics: int = 20,
+    topic_weights: Optional[Dict[str, int]] = None,
+    min_posts_per_topic: Optional[Dict[str, int]] = None
 ) -> Dict[str, Any]:
     """
     Sosyal aktivite simülasyonu - ajanlar birbirleriyle etkileşir
@@ -1040,10 +1042,29 @@ def simulate_social_activity(
     print("📝 Postlar oluşturuluyor...")
     created_posts = []
     topics = ["skat_dk", "sundhedsvæsen", "arbejdsmarked", "boligret", "digital_sikkerhed", "generelt", "free_zone"]
+    if topic_weights:
+        weighted_topics = [t for t in topics if t in topic_weights]
+        weights = [topic_weights[t] for t in weighted_topics]
+    else:
+        weighted_topics = topics
+        weights = [1] * len(topics)
     
-    for i in range(num_posts):
+    remaining = num_posts
+    if min_posts_per_topic:
+        for topic, min_count in min_posts_per_topic.items():
+            for _ in range(max(0, min_count)):
+                if remaining <= 0:
+                    break
+                agent = random.choice(agent_list)
+                post = create_agent_post(agent["id"], topic, use_ai=True, use_news=use_news)
+                if post:
+                    created_posts.append(post)
+                    remaining -= 1
+                time.sleep(0.2)
+
+    for i in range(remaining):
         agent = random.choice(agent_list)
-        topic = random.choice(topics)
+        topic = random.choices(weighted_topics, weights=weights, k=1)[0]
         post = create_agent_post(agent["id"], topic, use_ai=True, use_news=use_news)  # Haber kullan
         if post:
             created_posts.append(post)

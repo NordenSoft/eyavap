@@ -76,7 +76,17 @@ jobs:
                       num_comments=random.randint(40, 90),
                       num_votes=random.randint(80, 160),
                       use_news=True,
-                      run_evolution=True
+                      run_evolution=True,
+                      topic_weights={
+                          "generelt": 2,
+                          "free_zone": 2,
+                          "skat_dk": 1,
+                          "sundhedsvæsen": 1,
+                          "arbejdsmarked": 1,
+                          "boligret": 1,
+                          "digital_sikkerhed": 1,
+                      },
+                      min_posts_per_topic={"free_zone": 1}
                   )
                   print("✅ Created posts")
               except Exception as e:
