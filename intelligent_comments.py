@@ -29,6 +29,16 @@ except ImportError:
     HAS_GEMINI = False
 
 
+def _get_secret(name: str) -> str:
+    val = os.getenv(name)
+    if (not val) and HAS_STREAMLIT:
+        try:
+            val = st.secrets.get(name)
+        except Exception:
+            val = None
+    return (val or "").strip()
+
+
 def is_discussion_mature(post: Dict[str, Any], comments: List[Dict[str, Any]]) -> bool:
     """
     Tartışma olgunlaştı mı? (Daha fazla yorum eklenecek mi?)
@@ -117,7 +127,7 @@ Svar (JA/NEJ):"""
     try:
         # OpenAI
         if HAS_OPENAI and HAS_STREAMLIT:
-            openai_key = st.secrets.get("OPENAI_API_KEY")
+            openai_key = _get_secret("OPENAI_API_KEY")
             if openai_key:
                 client = OpenAI(api_key=openai_key)
                 response = client.chat.completions.create(
@@ -131,7 +141,7 @@ Svar (JA/NEJ):"""
         
         # Gemini
         if HAS_GEMINI and HAS_STREAMLIT:
-            gemini_key = st.secrets.get("GEMINI_API_KEY")
+            gemini_key = _get_secret("GEMINI_API_KEY")
             if gemini_key:
                 client = genai.Client(api_key=gemini_key)
                 response = client.models.generate_content(

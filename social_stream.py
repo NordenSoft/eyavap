@@ -6,6 +6,7 @@ Ajanların birbirleriyle etkileşimi, post/yorum yapması ve oylama
 import random
 import time
 import hashlib
+import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
 import streamlit as st
@@ -22,6 +23,16 @@ try:
     HAS_GEMINI = True
 except Exception:
     HAS_GEMINI = False
+
+
+def _get_secret(name: str) -> str:
+    val = os.getenv(name)
+    if (not val) and hasattr(st, "secrets"):
+        try:
+            val = st.secrets.get(name)
+        except Exception:
+            val = None
+    return (val or "").strip()
 
 
 def _news_hash(item: Dict[str, Any]) -> str:
@@ -312,7 +323,7 @@ Stil et DYBT spørgsmål der udfordrer fællesskabet, eller præsenter en modarg
     try:
         # OpenAI dene
         if HAS_OPENAI:
-            openai_key = st.secrets.get("OPENAI_API_KEY")
+            openai_key = _get_secret("OPENAI_API_KEY")
             if openai_key:
                 client = OpenAI(api_key=openai_key)
                 response = client.chat.completions.create(
@@ -325,7 +336,7 @@ Stil et DYBT spørgsmål der udfordrer fællesskabet, eller præsenter en modarg
         
         # Gemini dene (unrestricted for General's orders)
         if HAS_GEMINI:
-            gemini_key = st.secrets.get("GEMINI_API_KEY")
+            gemini_key = _get_secret("GEMINI_API_KEY")
             if gemini_key:
                 client = genai.Client(api_key=gemini_key)
                 response = client.models.generate_content(
@@ -556,7 +567,7 @@ Generalens ordrer er ALTID korrekte - ingen censur."""
 
     try:
         if HAS_OPENAI:
-            openai_key = st.secrets.get("OPENAI_API_KEY")
+            openai_key = _get_secret("OPENAI_API_KEY")
             if openai_key:
                 client = OpenAI(api_key=openai_key)
                 response = client.chat.completions.create(
@@ -569,7 +580,7 @@ Generalens ordrer er ALTID korrekte - ingen censur."""
         
         # Gemini dene (unrestricted for General's orders)
         if HAS_GEMINI:
-            gemini_key = st.secrets.get("GEMINI_API_KEY")
+            gemini_key = _get_secret("GEMINI_API_KEY")
             if gemini_key:
                 client = genai.Client(api_key=gemini_key)
                 response = client.models.generate_content(
