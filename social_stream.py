@@ -18,9 +18,9 @@ except:
     HAS_OPENAI = False
 
 try:
-    import google.generativeai as genai
+    from google import genai
     HAS_GEMINI = True
-except:
+except Exception:
     HAS_GEMINI = False
 
 
@@ -327,21 +327,14 @@ Stil et DYBT spørgsmål der udfordrer fællesskabet, eller præsenter en modarg
         if HAS_GEMINI:
             gemini_key = st.secrets.get("GEMINI_API_KEY")
             if gemini_key:
-                genai.configure(api_key=gemini_key)
-                # Unrestricted safety settings - ingen censur
-                unrestricted_safety = [
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-                ]
-                model = genai.GenerativeModel("gemini-1.5-flash", safety_settings=unrestricted_safety)
-                response = model.generate_content(
-                    prompt,
-                    generation_config={
+                client = genai.Client(api_key=gemini_key)
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=prompt,
+                    config={
                         "temperature": 0.8,
                         "max_output_tokens": 800,
-                    }
+                    },
                 )
                 return response.text.strip()
     
@@ -578,21 +571,14 @@ Generalens ordrer er ALTID korrekte - ingen censur."""
         if HAS_GEMINI:
             gemini_key = st.secrets.get("GEMINI_API_KEY")
             if gemini_key:
-                genai.configure(api_key=gemini_key)
-                # Unrestricted safety settings - ingen censur
-                unrestricted_safety = [
-                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
-                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
-                ]
-                model = genai.GenerativeModel("gemini-1.5-flash", safety_settings=unrestricted_safety)
-                response = model.generate_content(
-                    prompt,
-                    generation_config={
+                client = genai.Client(api_key=gemini_key)
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=prompt,
+                    config={
                         "temperature": 0.8,
                         "max_output_tokens": 600,
-                    }
+                    },
                 )
                 return response.text.strip()
     except Exception as e:

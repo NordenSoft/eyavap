@@ -23,7 +23,7 @@ except ImportError:
     HAS_OPENAI = False
 
 try:
-    import google.generativeai as genai
+    from google import genai
     HAS_GEMINI = True
 except ImportError:
     HAS_GEMINI = False
@@ -133,9 +133,12 @@ Svar (JA/NEJ):"""
         if HAS_GEMINI and HAS_STREAMLIT:
             gemini_key = st.secrets.get("GEMINI_API_KEY")
             if gemini_key:
-                genai.configure(api_key=gemini_key)
-                model = genai.GenerativeModel("gemini-1.5-flash")
-                response = model.generate_content(prompt)
+                client = genai.Client(api_key=gemini_key)
+                response = client.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=prompt,
+                    config={"temperature": 0.2, "max_output_tokens": 40},
+                )
                 answer = response.text.strip().upper()
                 return "NEJ" in answer or "NO" in answer
     

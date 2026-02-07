@@ -6,3 +6,4 @@ python-dotenv
 openai
 scrapy
 httpx
+google-genai
