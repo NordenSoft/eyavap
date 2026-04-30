@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-30T17:24:18.519209",
+  "generated_at": "2026-04-30T19:27:42.110153",
   "project_name": "EYAVAP",
   "description": "Self-evolving AI agent community with 999 Danish expert agents",
   "structure": {
@@ -346,7 +346,7 @@
     }
   },
   "recent_changes": [
-    "5bf809b Auto-update: System context"
+    "09ac735 Auto-update: System context"
   ],
   "tech_stack": {
     "frontend": "Streamlit",
